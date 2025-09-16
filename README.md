@@ -1,5 +1,9 @@
 # NFOGuard
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/sbcrumb/nfoguard.svg)](https://hub.docker.com/r/sbcrumb/nfoguard)
+[![Docker Image Version](https://img.shields.io/docker/v/sbcrumb/nfoguard?sort=semver)](https://hub.docker.com/r/sbcrumb/nfoguard)
+[![Docker Image Size](https://img.shields.io/docker/image-size/sbcrumb/nfoguard/latest)](https://hub.docker.com/r/sbcrumb/nfoguard)
+
 **Automated NFO file management for Radarr and Sonarr with intelligent date handling**
 
 NFOGuard automatically updates movie and TV show NFO files with proper release dates and metadata when triggered by Radarr/Sonarr webhooks. It preserves existing metadata while adding clean, accurate date information at the bottom of NFO files.
@@ -72,8 +76,8 @@ curl http://localhost:8080/health
 **Media Paths** (Required):
 ```bash
 # Container paths (what NFOGuard sees)
-MOVIE_PATHS=/media/Movies/movies
-TV_PATHS=/media/TV/tv
+MOVIE_PATHS=/media/Movies/movies,/media/Movies/movies6
+TV_PATHS=/media/TV/tv,/media/TV/tv6
 
 # *arr application paths (what your apps see)
 RADARR_ROOT_FOLDERS=/mnt/unionfs/Media/Movies/movies
@@ -116,6 +120,45 @@ Configure these webhook URLs in your applications:
 **Sonarr**: `http://nfoguard:8080/webhook/sonarr`
 
 **Triggers**: On Import, On Upgrade, On Rename
+
+## 🔄 Manual Operations
+
+### Manual Scanning
+
+Trigger manual scans via API endpoints:
+
+```bash
+# Manual scan all media (movies and TV)
+curl -X POST "http://localhost:8080/manual/scan?scan_type=both"
+
+# Manual scan TV only
+curl -X POST "http://localhost:8080/manual/scan?scan_type=tv"
+
+# Manual scan movies only
+curl -X POST "http://localhost:8080/manual/scan?scan_type=movies"
+
+# Manual scan specific path
+curl -X POST "http://localhost:8080/manual/scan?path=/media/movies"
+
+# Bulk update all movies from Radarr database
+curl -X POST "http://localhost:8080/bulk/update"
+```
+
+### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Health check |
+| `/webhook/radarr` | POST | Radarr webhook handler |
+| `/webhook/sonarr` | POST | Sonarr webhook handler |
+| `/manual/scan` | POST | Manual media scanning |
+| `/bulk/update` | POST | Bulk movie updates from Radarr DB |
+
+### Manual Scan Parameters
+
+- `scan_type`: `both`, `movies`, `tv`
+- `path`: Specific directory path to scan
+- Use for initial setup or fixing existing media
 
 ## 📁 Volume Mapping
 
@@ -208,7 +251,7 @@ curl http://localhost:8080/health
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-username/NFOguard/issues)
+- **Issues**: [GitHub Issues](https://github.com/sbcrumb/NFOguard/issues)
 - **Documentation**: See `SETUP_GUIDE.md` for detailed instructions
 - **Docker Hub**: [`sbcrumb/nfoguard`](https://hub.docker.com/r/sbcrumb/nfoguard)
 

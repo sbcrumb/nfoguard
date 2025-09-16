@@ -20,9 +20,9 @@ NFOGuard automatically updates movie and TV show NFO files with proper release d
 ### 1. Download Configuration Files
 
 ```bash
-wget https://raw.githubusercontent.com/your-username/NFOguard/main/.env.template
-wget https://raw.githubusercontent.com/your-username/NFOguard/main/.env.secrets.template
-wget https://raw.githubusercontent.com/your-username/NFOguard/main/docker-compose.example.yml
+wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/.env.template
+wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/.env.secrets.template
+wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/docker-compose.example.yml
 ```
 
 ### 2. Configure Environment
@@ -72,8 +72,8 @@ curl http://localhost:8080/health
 **Media Paths** (Required):
 ```bash
 # Container paths (what NFOGuard sees)
-MOVIE_PATHS=/media/Movies/movies,/media/Movies/movies6
-TV_PATHS=/media/TV/tv,/media/TV/tv6
+MOVIE_PATHS=/media/Movies/movies
+TV_PATHS=/media/TV/tv
 
 # *arr application paths (what your apps see)
 RADARR_ROOT_FOLDERS=/mnt/unionfs/Media/Movies/movies

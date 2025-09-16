@@ -4,6 +4,20 @@
 [![Docker Image Version](https://img.shields.io/docker/v/sbcrumb/nfoguard?sort=semver)](https://hub.docker.com/r/sbcrumb/nfoguard)
 [![Docker Image Size](https://img.shields.io/docker/image-size/sbcrumb/nfoguard/latest)](https://hub.docker.com/r/sbcrumb/nfoguard)
 
+---
+
+> **⚠️ ALPHA SOFTWARE NOTICE ⚠️**
+>
+> NFOGuard is currently in **Alpha** stage. While functional, it may have bugs or missing features.
+>
+> **🔌 Emby Plugin Available**: To take full advantage of NFOGuard's capabilities, join our Discord server to get access to the companion Emby plugin:
+>
+> **[Join Discord: https://discord.gg/bbD9Pmtr](https://discord.gg/bbD9Pmtr)**
+>
+> *If the Discord link has expired, please [open an issue](https://github.com/your-username/NFOguard/issues) and we'll provide an updated link.*
+
+---
+
 **Automated NFO file management for Radarr and Sonarr with intelligent date handling**
 
 NFOGuard automatically updates movie and TV show NFO files with proper release dates and metadata when triggered by Radarr/Sonarr webhooks. It preserves existing metadata while adding clean, accurate date information at the bottom of NFO files.

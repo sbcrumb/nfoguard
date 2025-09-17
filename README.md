@@ -4,6 +4,8 @@
 [![Docker Image Version](https://img.shields.io/docker/v/sbcrumb/nfoguard?sort=semver)](https://hub.docker.com/r/sbcrumb/nfoguard)
 [![Docker Image Size](https://img.shields.io/docker/image-size/sbcrumb/nfoguard/latest)](https://hub.docker.com/r/sbcrumb/nfoguard)
 
+**Automated NFO file management for Radarr and Sonarr with intelligent date handling**
+
 ---
 
 > **⚠️ ALPHA SOFTWARE NOTICE ⚠️**
@@ -14,11 +16,9 @@
 >
 > **[Join Discord: https://discord.gg/bbD9Pmtr](https://discord.gg/bbD9Pmtr)**
 >
-> *If the Discord link has expired, please [open an issue](https://github.com/your-username/NFOguard/issues) and we'll provide an updated link.*
+> *If the Discord link has expired, please [open an issue](https://github.com/sbcrumb/NFOguard/issues) and we'll provide an updated link.*
 
 ---
-
-**Automated NFO file management for Radarr and Sonarr with intelligent date handling**
 
 NFOGuard automatically updates movie and TV show NFO files with proper release dates and metadata when triggered by Radarr/Sonarr webhooks. It preserves existing metadata while adding clean, accurate date information at the bottom of NFO files.
 
@@ -262,6 +262,114 @@ curl http://localhost:8080/health
 - Radarr and/or Sonarr
 - Media files in accessible directories
 - Network connectivity between services
+
+## 📁 Directory Structure Requirements
+
+NFOGuard identifies movies and TV shows using two methods: directory names with IMDb IDs (primary) or NFO files with IMDb IDs (fallback). Your media should follow these conventions:
+
+### 🎬 **Movies**
+
+**Directory Structure:**
+```
+/movies/
+└── Movie Title (2024) [tt1234567]/
+    ├── movie.mkv
+    └── movie.nfo (created by NFOGuard)
+```
+
+**Identification Methods:**
+1. **Primary**: Directory name contains IMDb ID in brackets: `[tt1234567]` or `[imdb-tt1234567]`
+2. **Fallback**: NFO file with IMDb ID in movie.nfo file (see NFO format below)
+3. **Video file** required: `.mkv`, `.mp4`, `.avi`, `.mov`, `.m4v`
+4. **Case insensitive** - `[TT1234567]` works too
+
+**Examples:**
+```
+✅ Action Film (2024) [tt1234567]/
+✅ Drama Movie [imdb-tt7654321]/
+✅ SciFi Thriller (2023) [TT9876543]/
+❌ Missing IMDB Directory/
+```
+
+### 📺 **TV Shows**
+
+**Directory Structure:**
+```
+/tv/
+└── Series Title (2024) [tt1234567]/
+    ├── Season 01/
+    │   ├── Series S01E01.mkv
+    │   ├── Series S01E02.mkv
+    │   ├── S01E01.nfo (created by NFOGuard)
+    │   └── S01E02.nfo (created by NFOGuard)
+    ├── Season 02/
+    └── tvshow.nfo (created by NFOGuard)
+```
+
+**Identification Methods:**
+1. **Primary**: Series directory contains IMDb ID: `[tt1234567]` or `[imdb-tt1234567]`
+2. **Fallback**: NFO file with IMDb ID in tvshow.nfo file (see NFO format below)
+3. **Season directories** must match pattern: `Season 01`, `Season 1`, `season 01` etc.
+4. **Episode files** must contain season/episode info:
+   - **SxxExx format**: `S01E01`, `S1E1`, `s01e01`
+   - **Dot format**: `1.1`, `01.01`
+5. **Video extensions**: `.mkv`, `.mp4`, `.avi`, `.mov`, `.m4v`, `.ts`, `.m2ts`
+
+**Examples:**
+```
+✅ Drama Series (2024) [tt1234567]/
+    ├── Season 01/
+    │   ├── Drama S01E01.mkv
+    │   └── Drama S01E02.mkv
+    └── Season 02/
+
+✅ Comedy Show [tt7654321]/
+    └── Season 1/
+        ├── Comedy 1.1.mkv
+        └── Comedy 1.2.mkv
+
+❌ Series Without IMDB []/
+❌ Series [tt1234567]/Episode01.mkv (no season directory)
+❌ Series [tt1234567]/Season 1/RandomName.mkv (no episode pattern)
+```
+
+### 📄 **NFO File Identification Format**
+
+NFOGuard can extract IMDb IDs from existing NFO files using these XML tags:
+
+**Movie NFO (movie.nfo):**
+```xml
+<!-- Method 1: uniqueid tag (preferred) -->
+<uniqueid type="imdb">tt1234567</uniqueid>
+
+<!-- Method 2: imdbid tag -->
+<imdbid>tt1234567</imdbid>
+
+<!-- Method 3: imdb tag -->
+<imdb>tt1234567</imdb>
+```
+
+**TV Show NFO (tvshow.nfo):**
+```xml
+<!-- Same format as movies -->
+<uniqueid type="imdb">tt1234567</uniqueid>
+<imdbid>tt1234567</imdbid>
+<imdb>tt1234567</imdb>
+```
+
+**Episode NFO Files:**
+NFOGuard creates standardized episode NFO files using the pattern `S##E##.nfo`:
+- `S01E01.nfo` for Season 1, Episode 1
+- `S02E05.nfo` for Season 2, Episode 5
+- Always zero-padded format (S01E01, not S1E1)
+- **Smart Rename**: NFOGuard will find existing NFO files (created by Sonarr/other tools), extract their metadata, and rename them to the standard format
+
+### 🚫 **What Gets Skipped**
+NFOGuard will ignore:
+- Directories without IMDb IDs in brackets AND no NFO files with IMDb IDs
+- Directories without video files
+- TV episodes without recognizable season/episode patterns
+- Season directories that don't match "Season X" format
 
 ## 🆘 Support
 

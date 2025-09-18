@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-NFOGuard - Consolidated webhook server for TV and Movie import date management
-Replaces webhook_server.py and media_date_cache.py with modular architecture
+NFOGuard - Automated NFO file management for Radarr and Sonarr
+Modular architecture with webhook processing and intelligent date handling
 """
 import os
 import json

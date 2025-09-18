@@ -122,7 +122,7 @@ If you have an existing `.env` with API keys:
 version: '3.8'
 services:
   nfoguard:
-    image: ghcr.io/your-org/nfoguard:latest
+    image: sbcrumb/nfoguard:latest
     container_name: nfoguard
     ports:
       - "8080:8080"

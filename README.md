@@ -374,7 +374,7 @@ NFOGuard will ignore:
 ## 🆘 Support
 
 - **Issues**: [GitHub Issues](https://github.com/sbcrumb/NFOguard/issues)
-- **Documentation**: See `SETUP_GUIDE.md` for detailed instructions
+- **Documentation**: See `SETUP.md` for detailed instructions
 - **Docker Hub**: [`sbcrumb/nfoguard`](https://hub.docker.com/r/sbcrumb/nfoguard)
 
 ## 📄 License

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Sonarr API client extracted from media_date_cache.py
+Enhanced Sonarr API client for TV show metadata and episode management
 """
 import json
 import time

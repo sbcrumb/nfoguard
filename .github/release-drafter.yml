@@ -10,9 +10,9 @@ categories:
 change-template: '- $TITLE (#$NUMBER) by @$AUTHOR'
 no-changes-template: 'Minor internal improvements.'
 template: |
-  ## What’s Changed
+  ## What's Changed
   $CHANGES
 
   ## Container Images
-  - `ghcr.io/${{ repo_owner }}/${{ repo_name }}:latest`
-  - `ghcr.io/${{ repo_owner }}/${{ repo_name }}:$NEXT_PATCH_VERSION`
+  - `[DockerHub Username]/nfoguard:latest`
+  - `[DockerHub Username]/nfoguard:$NEXT_PATCH_VERSION`

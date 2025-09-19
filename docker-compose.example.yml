@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  nfoguard:
+    image: ghcr.io/jskala/nfoguard:latest
+    container_name: nfoguard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ${MEDIA_PATH}:/media:ro
+      # Bind mount your Emby plugins directory for automatic plugin deployment
+      - ${EMBY_PLUGINS_PATH}:/emby-plugins
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: PostgreSQL database
+  # postgres:
+  #   image: postgres:15
+  #   container_name: nfoguard-db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: nfoguard
+  #     POSTGRES_USER: ${DB_USER:-nfoguard}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data:

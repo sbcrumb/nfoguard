@@ -14,5 +14,5 @@ template: |
   $CHANGES
 
   ## Container Images
-  - `[DockerHub Username]/nfoguard:latest`
-  - `[DockerHub Username]/nfoguard:$NEXT_PATCH_VERSION`
+  - `sbcrumb/nfoguard:latest`
+  - `sbcrumb/nfoguard:$NEXT_PATCH_VERSION`

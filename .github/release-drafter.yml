@@ -10,9 +10,8 @@ categories:
 change-template: '- $TITLE (#$NUMBER) by @$AUTHOR'
 no-changes-template: 'Minor internal improvements.'
 template: |
-  ## What's Changed
-  $CHANGES
 
   ## Container Images
   - `sbcrumb/nfoguard:latest`
   - `sbcrumb/nfoguard:$NEXT_PATCH_VERSION`
+

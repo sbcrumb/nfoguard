@@ -12,7 +12,9 @@
 >
 > NFOGuard is currently in **Alpha** stage. While functional, it may have bugs or missing features.
 >
-> **🔌 Emby Plugin Available**: To take full advantage of NFOGuard's capabilities, join our Discord server to get access to the companion Emby plugin:
+> **🔌 Emby Plugin Included**: The Emby companion plugin is now bundled directly into the Docker image — no extra steps required.
+>
+> **💬 Community Feedback**: Join our Discord if you’d like to share feedback, test new features early, or discuss improvements with other users:
 >
 > **[Join Discord: https://discord.gg/bbD9Pmtr](https://discord.gg/bbD9Pmtr)**
 >

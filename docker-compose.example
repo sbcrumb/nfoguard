@@ -38,6 +38,9 @@ services:
     volumes:
       # NFOGuard data directory (database, logs, cache)
       - ./data:/app/data
+
+      # Bind mount your Emby plugins directory for automatic plugin deployment
+      - ${EMBY_PLUGINS_PATH}:/emby-plugins
       
       # Movie libraries - Mount your movie directories here
       # Format: host_path:container_path:rw

@@ -1017,12 +1017,16 @@ class MovieProcessor:
             self.db.upsert_movie_dates(imdb_id, released, None, source, True)
             return
         
+        _log("DEBUG", f"Movie {movie_path.name} proceeding to save: dateadded={dateadded}, source={source}")
+        
         # Update file mtimes (only if we have a valid date)
         if config.fix_dir_mtimes and dateadded and dateadded != "MANUAL_REVIEW_NEEDED":
             self.nfo_manager.update_movie_files_mtime(movie_path, dateadded)
         
         # Save to database
+        _log("DEBUG", f"About to save to database: imdb_id={imdb_id}, dateadded={dateadded}")
         self.db.upsert_movie_dates(imdb_id, released, dateadded, source, True)
+        _log("DEBUG", f"Database save completed for {imdb_id}")
         
         _log("INFO", f"Completed processing movie: {movie_path.name} (source: {source})")
     

@@ -49,6 +49,65 @@ class NFOManager:
         
         return None
     
+    def parse_imdb_from_nfo(self, nfo_path: Path) -> Optional[str]:
+        """Extract IMDb ID from NFO file content"""
+        if not nfo_path.exists():
+            return None
+            
+        try:
+            tree = ET.parse(nfo_path)
+            root = tree.getroot()
+            
+            # Check for <uniqueid type="imdb">ttXXXXXX</uniqueid>
+            imdb_uniqueid = root.find('.//uniqueid[@type="imdb"]')
+            if imdb_uniqueid is not None and imdb_uniqueid.text:
+                imdb_id = imdb_uniqueid.text.strip()
+                if imdb_id.startswith('tt'):
+                    return imdb_id
+                    
+            # Check for legacy <imdbid>ttXXXXXX</imdbid>
+            imdbid_elem = root.find('.//imdbid')
+            if imdbid_elem is not None and imdbid_elem.text:
+                imdb_id = imdbid_elem.text.strip()
+                if imdb_id.startswith('tt'):
+                    return imdb_id
+                    
+            # Check for legacy <imdb>ttXXXXXX</imdb>
+            imdb_elem = root.find('.//imdb')
+            if imdb_elem is not None and imdb_elem.text:
+                imdb_id = imdb_elem.text.strip()
+                if imdb_id.startswith('tt'):
+                    return imdb_id
+                    
+        except (ET.ParseError, Exception):
+            # Skip corrupted or non-XML files
+            pass
+            
+        return None
+    
+    def find_movie_imdb_id(self, movie_dir: Path) -> Optional[str]:
+        """Find IMDb ID from directory name, filenames, or NFO file"""
+        # First try directory name
+        imdb_id = self.parse_imdb_from_path(movie_dir)
+        if imdb_id:
+            return imdb_id
+            
+        # Try all files in the directory for IMDb ID patterns
+        for file_path in movie_dir.iterdir():
+            if file_path.is_file():
+                imdb_id = self.parse_imdb_from_path(file_path)
+                if imdb_id:
+                    return imdb_id
+                    
+        # Finally, try NFO file content
+        nfo_path = movie_dir / "movie.nfo"
+        imdb_id = self.parse_imdb_from_nfo(nfo_path)
+        if imdb_id:
+            print(f"🔍 Found IMDb ID in NFO file: {imdb_id} from {nfo_path}")
+            return imdb_id
+            
+        return None
+    
     def create_movie_nfo(self, movie_dir: Path, imdb_id: str, dateadded: str, 
                         released: Optional[str] = None, source: str = "unknown",
                         lock_metadata: bool = True) -> None:

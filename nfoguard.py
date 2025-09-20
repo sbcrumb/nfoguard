@@ -949,9 +949,9 @@ class MovieProcessor:
     
     def process_movie(self, movie_path: Path, webhook_mode: bool = False) -> None:
         """Process a movie directory"""
-        imdb_id = self.nfo_manager.parse_imdb_from_path(movie_path)
+        imdb_id = self.nfo_manager.find_movie_imdb_id(movie_path)
         if not imdb_id:
-            _log("ERROR", f"No IMDb ID found in movie path: {movie_path}")
+            _log("ERROR", f"No IMDb ID found in movie directory, filenames, or NFO file: {movie_path}")
             return
         
         _log("INFO", f"Processing movie: {movie_path.name} (IMDb: {imdb_id})")
@@ -1025,8 +1025,12 @@ class MovieProcessor:
         
         # Save to database
         _log("DEBUG", f"About to save to database: imdb_id={imdb_id}, dateadded={dateadded}")
-        self.db.upsert_movie_dates(imdb_id, released, dateadded, source, True)
-        _log("DEBUG", f"Database save completed for {imdb_id}")
+        try:
+            self.db.upsert_movie_dates(imdb_id, released, dateadded, source, True)
+            _log("DEBUG", f"Database save completed for {imdb_id}")
+        except Exception as e:
+            _log("ERROR", f"Database save failed for {imdb_id}: {e}")
+            raise
         
         _log("INFO", f"Completed processing movie: {movie_path.name} (source: {source})")
     

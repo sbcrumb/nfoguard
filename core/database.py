@@ -173,6 +173,7 @@ class NFOGuardDatabase:
     def upsert_movie_dates(self, imdb_id: str, released: Optional[str], 
                           dateadded: Optional[str], source: str, has_video_file: bool = False):
         """Insert or update movie date record"""
+        print(f"🔍 DATABASE UPSERT: imdb_id={imdb_id}, dateadded={dateadded}, source={source}")
         with self.get_connection() as conn:
             cursor = conn.cursor()
             # Use INSERT OR REPLACE to ensure we always update the dates properly
@@ -184,6 +185,11 @@ class NFOGuardDatabase:
                     ?, ?, ?, ?, ?
                 )
             """, (imdb_id, imdb_id, released, dateadded, source, has_video_file, datetime.utcnow().isoformat()))
+            
+            # Debug: Check what was actually saved
+            cursor.execute("SELECT dateadded, source FROM movies WHERE imdb_id = ?", (imdb_id,))
+            result = cursor.fetchone()
+            print(f"🔍 DATABASE VERIFY: After upsert, found dateadded={result[0] if result else 'NOT_FOUND'}, source={result[1] if result else 'NOT_FOUND'}")
     
     def get_series_episodes(self, imdb_id: str, has_video_file_only: bool = False) -> List[Dict]:
         """Get all episodes for a series"""

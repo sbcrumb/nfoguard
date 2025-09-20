@@ -1005,19 +1005,19 @@ class MovieProcessor:
             # Use existing movie date decision logic
             dateadded, source, released = self._decide_movie_dates(imdb_id, movie_path, should_query, existing)
         
-        # Skip processing if no valid date found and file dates disabled
-        if dateadded is None:
-            _log("WARNING", f"Skipping movie {movie_path.name} - no valid date source available")
-            self.db.upsert_movie_dates(imdb_id, released, None, source, True)
-            return
-        
-        # Create NFO
+        # Create NFO regardless of date availability (preserves existing metadata)
         if config.manage_nfo:
             self.nfo_manager.create_movie_nfo(
                 movie_path, imdb_id, dateadded, released, source, config.lock_metadata
             )
         
-        # Update file mtimes
+        # Skip remaining processing if no valid date found and file dates disabled
+        if dateadded is None:
+            _log("WARNING", f"Movie {movie_path.name} - no valid date source available, but NFO was still processed")
+            self.db.upsert_movie_dates(imdb_id, released, None, source, True)
+            return
+        
+        # Update file mtimes (only if we have a valid date)
         if config.fix_dir_mtimes and dateadded and dateadded != "MANUAL_REVIEW_NEEDED":
             self.nfo_manager.update_movie_files_mtime(movie_path, dateadded)
         

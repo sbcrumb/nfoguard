@@ -279,6 +279,48 @@ class NFOManager:
         except Exception as e:
             print(f"❌ Error creating/updating season NFO {nfo_path}: {e}")
     
+    def find_existing_episode_nfo(self, season_dir: Path, season_num: int, episode_num: int) -> Optional[Path]:
+        """Find existing episode NFO file that matches season/episode but isn't standardized name"""
+        if not season_dir.exists():
+            return None
+            
+        # Standard filename pattern we're looking to create
+        standard_pattern = f"S{season_num:02d}E{episode_num:02d}.nfo"
+        
+        # Look for NFO files in the season directory
+        for nfo_file in season_dir.glob("*.nfo"):
+            # Skip if it's already the standard format
+            if nfo_file.name == standard_pattern:
+                continue
+                
+            # Check if this NFO contains the right season/episode
+            try:
+                tree = ET.parse(nfo_file)
+                root = tree.getroot()
+                
+                if root.tag == "episodedetails":
+                    # Check for season/episode elements
+                    season_elem = root.find("season")
+                    episode_elem = root.find("episode")
+                    
+                    if (season_elem is not None and episode_elem is not None and
+                        season_elem.text and episode_elem.text):
+                        try:
+                            file_season = int(season_elem.text)
+                            file_episode = int(episode_elem.text)
+                            
+                            if file_season == season_num and file_episode == episode_num:
+                                print(f"🔍 Found existing episode NFO: {nfo_file.name} -> will migrate to {standard_pattern}")
+                                return nfo_file
+                        except ValueError:
+                            continue
+                            
+            except (ET.ParseError, Exception):
+                # Skip corrupted or non-XML files
+                continue
+                
+        return None
+    
     def create_episode_nfo(self, season_dir: Path, season_num: int, episode_num: int,
                           aired: Optional[str], dateadded: Optional[str], source: str,
                           lock_metadata: bool = True, enhanced_metadata: Optional[Dict[str, Any]] = None) -> None:
@@ -287,16 +329,29 @@ class NFOManager:
         episode_filename = f"S{season_num:02d}E{episode_num:02d}.nfo"
         nfo_path = season_dir / episode_filename
         
+        # Track if we need to delete an old long-named NFO file
+        old_nfo_to_delete = None
+        
         try:
-            # Try to load existing NFO file
-            if nfo_path.exists():
+            # First, check for existing long-named NFO files that need migration
+            existing_long_nfo = self.find_existing_episode_nfo(season_dir, season_num, episode_num)
+            
+            # Try to load existing NFO file (either standard or long-named)
+            source_nfo_path = nfo_path if nfo_path.exists() else existing_long_nfo
+            
+            if source_nfo_path:
                 try:
-                    tree = ET.parse(nfo_path)
+                    tree = ET.parse(source_nfo_path)
                     episode = tree.getroot()
                     
                     # Ensure root element is <episodedetails>
                     if episode.tag != "episodedetails":
                         raise ValueError("Root element is not <episodedetails>")
+                    
+                    # If we're migrating from a long-named file, mark it for deletion
+                    if existing_long_nfo and source_nfo_path == existing_long_nfo:
+                        old_nfo_to_delete = existing_long_nfo
+                        print(f"📦 Migrating episode NFO: {existing_long_nfo.name} -> {episode_filename}")
                     
                     # Remove existing NFOGuard-managed elements to avoid duplicates
                     # These will be re-added at the bottom
@@ -373,6 +428,14 @@ class NFOManager:
             
             print(f"✅ Successfully created/updated episode NFO: {nfo_path}")
             print(f"   S{season_num:02d}E{episode_num:02d}, Aired: {aired}, Date Added: {dateadded}")
+            
+            # Clean up old long-named NFO file if we migrated from it
+            if old_nfo_to_delete and old_nfo_to_delete.exists():
+                try:
+                    old_nfo_to_delete.unlink()
+                    print(f"🗑️  Cleaned up old NFO file: {old_nfo_to_delete.name}")
+                except Exception as cleanup_error:
+                    print(f"⚠️  Warning: Could not delete old NFO file {old_nfo_to_delete.name}: {cleanup_error}")
             
         except Exception as e:
             print(f"❌ Error creating/updating episode NFO {nfo_path}: {e}")

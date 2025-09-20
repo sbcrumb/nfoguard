@@ -1025,6 +1025,7 @@ class MovieProcessor:
         
         # Save to database
         _log("DEBUG", f"About to save to database: imdb_id={imdb_id}, dateadded={dateadded}")
+
         try:
             self.db.upsert_movie_dates(imdb_id, released, dateadded, source, True)
             _log("DEBUG", f"Database save completed for {imdb_id}")

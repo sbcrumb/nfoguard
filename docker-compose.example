@@ -1,0 +1,165 @@
+version: '3.8'
+
+services:
+  nfoguard:
+    # Use the official image from Docker Hub
+    image: sbcrumb/nfoguard:latest
+    
+    # Alternative: Use specific version
+    # image: sbcrumb/nfoguard:v1.5.5
+    
+    # Alternative: Use development version
+    # image: sbcrumb/nfoguard:dev
+    
+    container_name: nfoguard
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Environment files
+    env_file:
+      - .env
+      - .env.secrets
+    
+    # Environment variables
+    environment:
+      - TZ=America/New_York  # Set to your local timezone
+      # Alternative examples:
+      # - TZ=Europe/London
+      # - TZ=America/Los_Angeles  
+      # - TZ=Australia/Sydney
+      # - TZ=UTC
+    
+    # Port mapping (adjust if needed)
+    ports:
+      - "8080:8080"
+    
+    # Volume mounts - CRITICAL: These must match your media setup
+    volumes:
+      # NFOGuard data directory (database, logs, cache)
+      - ./data:/app/data
+
+      # Bind mount your Emby plugins directory for automatic plugin deployment
+      - ${EMBY_PLUGINS_PATH}:/emby-plugins
+      
+      # Movie libraries - Mount your movie directories here
+      # Format: host_path:container_path:rw
+      - /path/to/your/movies:/media/Movies/movies:rw
+      - /path/to/your/movies2:/media/Movies/movies6:rw
+      
+      # TV libraries - Mount your TV show directories here  
+      - /path/to/your/tv:/media/TV/tv:rw
+      - /path/to/your/tv2:/media/TV/tv6:rw
+      
+      # Optional: Mount download directories for detection
+      # - /path/to/downloads:/downloads:ro
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Network (optional - use if you have a custom network)
+    # networks:
+    #   - media-network
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Custom network for media services
+# networks:
+#   media-network:
+#     external: true
+
+# ===========================================
+# SETUP INSTRUCTIONS
+# ===========================================
+# 1. Copy this file to docker-compose.yml
+# 2. Update volume mounts to match your actual media paths
+# 3. Copy .env.template to .env and configure
+# 4. Copy .env.secrets.template to .env.secrets and add credentials
+# 5. Create data directory: mkdir -p ./data
+# 6. Run: docker-compose up -d
+# 7. Check logs: docker-compose logs -f nfoguard
+# 8. Access health check: curl http://localhost:8080/health
+
+# ===========================================
+# VOLUME MAPPING EXAMPLES
+# ===========================================
+# Common setups:
+#
+# Unraid:
+# - /mnt/user/Media/Movies:/media/Movies/movies:rw
+# - /mnt/user/Media/TV:/media/TV/tv:rw
+#
+# Synology:
+# - /volume1/Media/Movies:/media/Movies/movies:rw
+# - /volume1/Media/TV:/media/TV/tv:rw
+#
+# Standard Linux:
+# - /home/user/media/movies:/media/Movies/movies:rw
+# - /home/user/media/tv:/media/TV/tv:rw
+#
+# Windows (Docker Desktop):
+# - C:\Media\Movies:/media/Movies/movies:rw
+# - C:\Media\TV:/media/TV/tv:rw
+
+# ===========================================
+# WEBHOOK CONFIGURATION
+# ===========================================
+# Configure these webhook URLs in your *arr applications:
+#
+# Radarr webhook URL:
+# http://nfoguard:8080/webhook/radarr
+# (or http://localhost:8080/webhook/radarr if not using Docker network)
+#
+# Sonarr webhook URL: 
+# http://nfoguard:8080/webhook/sonarr
+# (or http://localhost:8080/webhook/sonarr if not using Docker network)
+#
+# Webhook triggers:
+# - On Import
+# - On Upgrade
+# - On Rename (recommended)
+
+# ===========================================
+# TROUBLESHOOTING
+# ===========================================
+# Common issues and solutions:
+#
+# 1. Permission denied errors:
+#    - Ensure NFOGuard container can write to mounted directories
+#    - Check file ownership and permissions
+#    - Consider using PUID/PGID environment variables
+#
+# 2. Path mapping issues:
+#    - Verify container paths match .env configuration
+#    - Ensure *arr applications can see the same files
+#    - Check RADARR_ROOT_FOLDERS and SONARR_ROOT_FOLDERS in .env
+#
+# 3. Database connection issues:
+#    - Verify PostgreSQL credentials in .env.secrets
+#    - Check network connectivity to database
+#    - Ensure database exists and user has permissions
+#
+# 4. Webhook not triggering:
+#    - Verify webhook URLs in *arr applications
+#    - Check NFOGuard logs for incoming requests
+#    - Ensure port 8080 is accessible

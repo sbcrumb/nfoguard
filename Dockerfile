@@ -12,11 +12,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GIT_BRANCH=${GIT_BRANCH} \
     BUILD_SOURCE=${BUILD_SOURCE}
 
-# Install system dependencies including PostgreSQL client libraries
+# Install system dependencies including PostgreSQL client libraries and tini
 RUN apt-get update && apt-get install -y \
     curl \
     libpq-dev \
     gcc \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user and directory
@@ -51,7 +52,7 @@ RUN mkdir -p /app/emby-plugin && \
     echo '  echo "No Emby plugins directory found - skipping plugin deployment"' >> /app/deploy-plugin.sh && \
     echo '  echo "To enable plugin deployment, bind mount your Emby plugins directory to /emby-plugins"' >> /app/deploy-plugin.sh && \
     echo 'fi' >> /app/deploy-plugin.sh && \
-    echo 'exec python -u nfoguard.py' >> /app/deploy-plugin.sh && \
+    echo 'exec python -u main.py' >> /app/deploy-plugin.sh && \
     chmod +x /app/deploy-plugin.sh
 
 # Set ownership
@@ -66,6 +67,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Expose port
 EXPOSE 8080
+
+# Use tini as init process to handle signals and zombie processes properly
+ENTRYPOINT ["tini", "--"]
 
 # Run the application with plugin deployment
 CMD ["/app/deploy-plugin.sh"]

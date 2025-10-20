@@ -248,7 +248,7 @@ class SonarrClient:
             _log("WARNING", f"No import events, using grab date: {earliest_grab['date']} for episode {episode_id}")
             return earliest_grab["date"]
         
-        _log("WARNING", f"No reliable import events found for episode {episode_id}")
+        _log("WARNING", f"No reliable import events found for episode {episode_id} - should use air date instead")
         return None
 
 

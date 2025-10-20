@@ -6,15 +6,23 @@ services:
     image: sbcrumb/nfoguard:latest
     
     # Alternative: Use specific version
-    # image: sbcrumb/nfoguard:v1.5.5
+    # image: sbcrumb/nfoguard:v2.6.5
     
     # Alternative: Use development version
     # image: sbcrumb/nfoguard:dev
     
     container_name: nfoguard
     
+    # Database dependency
+    depends_on:
+      - nfoguard-postgres
+    
     # Restart policy
     restart: unless-stopped
+    
+    # Graceful shutdown configuration
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
     
     # Environment files
     env_file:
@@ -83,6 +91,54 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # PostgreSQL Database (Required for v2.6+)
+  nfoguard-postgres:
+    image: postgres:15-alpine
+    container_name: nfoguard-db
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Environment variables for PostgreSQL
+    environment:
+      - POSTGRES_DB=nfoguard
+      - POSTGRES_USER=nfoguard
+      - POSTGRES_PASSWORD=${DB_PASSWORD}  # Set in .env.secrets
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    
+    # PostgreSQL data persistence
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    
+    # PostgreSQL port (optional - only needed for external access)
+    # ports:
+    #   - "5432:5432"
+    
+    # Health check for database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nfoguard -d nfoguard"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits for database
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 # Optional: Custom network for media services
 # networks:
 #   media-network:
@@ -93,12 +149,13 @@ services:
 # ===========================================
 # 1. Copy this file to docker-compose.yml
 # 2. Update volume mounts to match your actual media paths
-# 3. Copy .env.template to .env and configure
-# 4. Copy .env.secrets.template to .env.secrets and add credentials
-# 5. Create data directory: mkdir -p ./data
+# 3. Copy .env.example to .env and configure all settings
+# 4. Copy .env.secrets.example to .env.secrets and add credentials (especially DB_PASSWORD)
+# 5. Create directories: mkdir -p ./data ./postgres-data
 # 6. Run: docker-compose up -d
-# 7. Check logs: docker-compose logs -f nfoguard
-# 8. Access health check: curl http://localhost:8080/health
+# 7. Check logs: docker-compose logs -f
+# 8. Access web interface: http://localhost:8080
+# 9. Access health check: curl http://localhost:8080/health
 
 # ===========================================
 # VOLUME MAPPING EXAMPLES

@@ -8,17 +8,11 @@
 
 ---
 
-> **⚠️ ALPHA SOFTWARE NOTICE ⚠️**
->
-> NFOGuard is currently in **Alpha** stage. While functional, it may have bugs or missing features.
->
 > **🔌 Emby Plugin Included**: The Emby companion plugin is now bundled directly into the Docker image — no extra steps required.
 >
-> **💬 Community Feedback**: Join our Discord if you’d like to share feedback, test new features early, or discuss improvements with other users:
+> **💬 Community Feedback**: Join our Discord if you'd like to share feedback, test new features, or discuss improvements with other users:
 >
-> **[Join Discord: https://discord.gg/bbD9Pmtr](https://discord.gg/bbD9Pmtr)**
->
-> *If the Discord link has expired, please [open an issue](https://github.com/sbcrumb/NFOguard/issues) and we'll provide an updated link.*
+> **[Join Discord: https://discord.gg/ZykJRGt72b](https://discord.gg/ZykJRGt72b)**
 
 ---
 
@@ -38,7 +32,7 @@ NFOGuard automatically updates movie and TV show NFO files with proper release d
 - **Batch Processing** - Efficient handling of multiple files simultaneously
 - **PostgreSQL Database** - Production-ready database with optimized queries
 - **Smart Skip Logic** - Database-first checking eliminates expensive filesystem scans
-- **88% Scan Optimization** - TV library scans reduced from hours to minutes
+- **88% Scan Optimization** - Subsequent scans reduced from hours to minutes via smart skip logic
 
 ### **Web Interface & Management**
 - **Complete Web UI** - Episode and movie management with filtering and search
@@ -64,9 +58,9 @@ NFOGuard automatically updates movie and TV show NFO files with proper release d
 ### 1. Download Configuration Files
 
 ```bash
-wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/.env.template
-wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/.env.secrets.template
-wget https://raw.githubusercontent.com/sbcrumb/NFOguard/main/docker-compose.example.yml
+wget https://raw.githubusercontent.com/sbcrumb/nfoguard/main/.env.template
+wget https://raw.githubusercontent.com/sbcrumb/nfoguard/main/.env.secrets.template
+wget https://raw.githubusercontent.com/sbcrumb/nfoguard/main/docker-compose.example.yml
 ```
 
 ### 2. Configure Environment
@@ -149,10 +143,10 @@ image: sbcrumb/nfoguard:dev
 
 ### Specific Version  
 ```yaml
-image: sbcrumb/nfoguard:v2.0.0  # Latest with monitoring & validation
+image: sbcrumb/nfoguard:v2.6.7  # Latest with PostgreSQL & optimization
 ```
 
-> **🚀 Version 2.0.0** includes major architecture improvements, async I/O performance enhancements, comprehensive monitoring, and configuration validation.
+> **🚀 Version 2.6.7** includes major architecture improvements, PostgreSQL database migration, 88% scan optimization, async I/O performance enhancements, comprehensive monitoring, and configuration validation.
 
 ## 🔗 Webhook Setup
 
@@ -499,7 +493,7 @@ NFOGuard will ignore:
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/sbcrumb/NFOguard/issues)
+- **Issues**: [GitHub Issues](https://github.com/sbcrumb/nfoguard/issues)
 - **Documentation**: See `SETUP.md` for detailed instructions
 - **Docker Hub**: [`sbcrumb/nfoguard`](https://hub.docker.com/r/sbcrumb/nfoguard)
 

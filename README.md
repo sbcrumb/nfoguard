@@ -24,18 +24,42 @@
 
 NFOGuard automatically updates movie and TV show NFO files with proper release dates and metadata when triggered by Radarr/Sonarr webhooks. It preserves existing metadata while adding clean, accurate date information at the bottom of NFO files.
 
-## ✨ Features
+## Features
 
-- 🎬 **Movie & TV Support** - Works with both Radarr and Sonarr
-- 📅 **Smart Date Handling** - Prioritizes digital, physical, and theatrical release dates
-- 🔄 **Webhook Integration** - Triggers automatically on import, upgrade, and rename
-- 🗄️ **Database Integration** - Direct PostgreSQL access for better performance
-- 📝 **NFO Preservation** - Maintains existing metadata, adds fields cleanly at bottom
-- 🔒 **Metadata Locking** - Prevents overwrites with lockdata tags
-- ⚡ **Batch Processing** - Efficient handling of multiple files
-- 🐳 **Docker Ready** - Easy deployment with Docker Compose
+### **Core Media Management**
+- **Movie & TV Support** - Works with both Radarr and Sonarr
+- **Smart Date Handling** - Prioritizes digital, physical, and theatrical release dates
+- **Webhook Integration** - Triggers automatically on import, upgrade, and rename
+- **NFO Preservation** - Maintains existing metadata, adds fields cleanly at bottom
+- **Metadata Locking** - Prevents overwrites with lockdata tags
 
-## 🚀 Quick Start
+### **Performance & Scalability**
+- **Async I/O Operations** - High-performance concurrent file processing
+- **Batch Processing** - Efficient handling of multiple files simultaneously
+- **PostgreSQL Database** - Production-ready database with optimized queries
+- **Smart Skip Logic** - Database-first checking eliminates expensive filesystem scans
+- **88% Scan Optimization** - TV library scans reduced from hours to minutes
+
+### **Web Interface & Management**
+- **Complete Web UI** - Episode and movie management with filtering and search
+- **Database Cleanup Tools** - Delete orphaned episodes with confirmation dialogs
+- **Real-time Statistics** - Live episode counts and source mapping
+- **Manual Scan Control** - Smart, full, and incomplete scan modes
+- **Health Monitoring** - System status and performance metrics
+
+### **Configuration & Validation**
+- **Comprehensive Config Validation** - Validates all settings before startup
+- **Runtime Health Checks** - Monitors system health and dependencies
+- **Path Validation** - Ensures media directories are accessible
+- **Database Connectivity Tests** - Validates database connections
+
+### **Production Ready**
+- **Docker & Kubernetes** - Health checks for orchestration platforms
+- **Graceful Shutdown** - Proper signal handling for container management
+- **Configuration CLI** - Validation tools for troubleshooting
+- **Modular Architecture** - Clean separation of concerns for maintainability
+
+## Quick Start
 
 ### 1. Download Configuration Files
 
@@ -78,7 +102,7 @@ docker-compose logs -f nfoguard
 curl http://localhost:8080/health
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Files
 
@@ -111,7 +135,7 @@ DEBUG=false                    # Clean production logs
 SUPPRESS_TVDB_WARNINGS=true    # Hide non-critical API failures
 ```
 
-## 🐳 Docker Images
+## Docker Images
 
 ### Production (Stable)
 ```yaml
@@ -123,10 +147,12 @@ image: sbcrumb/nfoguard:latest
 image: sbcrumb/nfoguard:dev
 ```
 
-### Specific Version
+### Specific Version  
 ```yaml
-image: sbcrumb/nfoguard:v1.5.5
+image: sbcrumb/nfoguard:v2.0.0  # Latest with monitoring & validation
 ```
+
+> **🚀 Version 2.0.0** includes major architecture improvements, async I/O performance enhancements, comprehensive monitoring, and configuration validation.
 
 ## 🔗 Webhook Setup
 
@@ -162,13 +188,38 @@ curl -X POST "http://localhost:8080/bulk/update"
 
 ### API Endpoints
 
+#### **Core Operations**
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/health` | GET | Health check |
 | `/webhook/radarr` | POST | Radarr webhook handler |
 | `/webhook/sonarr` | POST | Sonarr webhook handler |
 | `/manual/scan` | POST | Manual media scanning |
-| `/bulk/update` | POST | Bulk movie updates from Radarr DB |
+| `/bulk/update` | POST | Bulk update from Radarr database |
+
+#### **Health & Monitoring** 
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/health` | GET | Comprehensive health status |
+| `/api/v1/health/ready` | GET | Kubernetes readiness probe |
+| `/api/v1/health/live` | GET | Kubernetes liveness probe |
+| `/api/v1/status` | GET | Complete system status |
+| `/api/v1/status/brief` | GET | Quick system overview |
+
+#### **Metrics & Performance**
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/metrics` | GET | Prometheus metrics (text format) |
+| `/api/v1/metrics/json` | GET | Metrics in JSON format |
+| `/api/v1/metrics/processing` | GET | Processing-specific metrics |
+| `/api/v1/metrics/errors` | GET | Error metrics and recent failures |
+| `/api/v1/metrics/system` | GET | System resource metrics |
+
+#### **Configuration & Debugging**
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/debug/movie/{imdb_id}/priority` | GET | Debug movie priority logic |
+| `/debug/tmdb/{imdb_id}` | GET | Debug TMDB lookup |
+| `/ping` | GET | Simple connectivity test |
 
 ### Manual Scan Parameters
 
@@ -207,7 +258,7 @@ volumes:
 - /home/user/media/tv:/media/TV/tv:rw
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Check Logs
 ```bash
@@ -226,6 +277,79 @@ PATH_DEBUG=true
 curl http://localhost:8080/health
 ```
 
+## Monitoring & Observability
+
+NFOGuard provides comprehensive monitoring capabilities for production deployments:
+
+### **Health Checks**
+```bash
+# Basic health status
+curl http://localhost:8080/api/v1/health
+
+# Kubernetes readiness probe  
+curl http://localhost:8080/api/v1/health/ready
+
+# Kubernetes liveness probe
+curl http://localhost:8080/api/v1/health/live
+
+# Quick system overview
+curl http://localhost:8080/api/v1/status/brief
+```
+
+### **Metrics for Grafana/Prometheus**
+```bash
+# Prometheus metrics format
+curl http://localhost:8080/api/v1/metrics
+
+# JSON metrics for dashboards
+curl http://localhost:8080/api/v1/metrics/json
+
+# Processing performance metrics
+curl http://localhost:8080/api/v1/metrics/processing
+
+# Error rates and recent failures
+curl http://localhost:8080/api/v1/metrics/errors
+
+# System resource usage
+curl http://localhost:8080/api/v1/metrics/system
+```
+
+### **Configuration Validation**
+```bash
+# Validate configuration before deployment
+python config/validation_cli.py
+
+# Include runtime tests (database, APIs, file access)
+python config/validation_cli.py --runtime
+
+# JSON output for automation
+python config/validation_cli.py --runtime --json
+```
+
+### **Docker Health Checks**
+Add to your `docker-compose.yml`:
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health/live"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+### **Structured Logging**
+NFOGuard uses structured JSON logging with correlation IDs for request tracing:
+```bash
+# Enable structured logging
+STRUCTURED_LOGGING=true
+
+# Log level configuration  
+LOG_LEVEL=INFO
+
+# Example log output with correlation ID
+{"timestamp": "2024-01-01T12:00:00Z", "level": "INFO", "correlation_id": "req_123", "message": "Webhook received", "context": {"webhook_type": "radarr", "media_type": "movie"}}
+```
+
 ### Common Issues
 
 1. **Permission Errors**: Ensure NFOGuard can write to mounted directories
@@ -233,7 +357,7 @@ curl http://localhost:8080/health
 3. **Webhooks**: Check URLs and ensure port 8080 is accessible
 4. **Database**: Verify PostgreSQL credentials in `.env.secrets`
 
-## 📊 What NFOGuard Does
+## What NFOGuard Does
 
 ### Before
 ```xml
@@ -269,7 +393,7 @@ curl http://localhost:8080/health
 
 NFOGuard identifies movies and TV shows using two methods: directory names with IMDb IDs (primary) or NFO files with IMDb IDs (fallback). Your media should follow these conventions:
 
-### 🎬 **Movies**
+### **Movies**
 
 **Directory Structure:**
 ```

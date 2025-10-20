@@ -659,6 +659,36 @@ class ExternalClientManager:
             return None
         
         return self.tvdb.imdb_to_tvdb_series_id(imdb_id)
+    
+    def get_episode_air_date(self, imdb_id: str, season: int, episode: int) -> Optional[str]:
+        """Get episode air date from external sources"""
+        _log("DEBUG", f"Looking for air date for {imdb_id} S{season:02d}E{episode:02d}")
+        
+        # Try TMDB first if available
+        if self.tmdb.enabled:
+            # Find TV show by IMDB ID
+            tv_find_result = self.tmdb._get(f"/find/{imdb_id}", {"external_source": "imdb_id"})
+            if tv_find_result and tv_find_result.get("tv_results"):
+                tv_show = tv_find_result["tv_results"][0]
+                tv_id = tv_show.get("id")
+                if tv_id:
+                    _log("DEBUG", f"Found TMDB TV ID {tv_id} for {imdb_id}")
+                    episodes = self.tmdb.get_tv_season_episodes(tv_id, season)
+                    if episode in episodes:
+                        air_date = episodes[episode]
+                        _log("INFO", f"Found TMDB air date for {imdb_id} S{season:02d}E{episode:02d}: {air_date}")
+                        return _parse_date_to_iso(air_date)
+        
+        # Try OMDb as fallback
+        if self.omdb.enabled:
+            episodes = self.omdb.get_tv_season_episodes(imdb_id, season)
+            if episode in episodes:
+                air_date = episodes[episode]
+                _log("INFO", f"Found OMDb air date for {imdb_id} S{season:02d}E{episode:02d}: {air_date}")
+                return _parse_date_to_iso(air_date)
+        
+        _log("WARNING", f"No air date found for {imdb_id} S{season:02d}E{episode:02d}")
+        return None
 
 
 if __name__ == "__main__":

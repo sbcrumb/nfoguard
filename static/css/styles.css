@@ -39,6 +39,7 @@ body {
     color: white;
     padding: 1rem 0;
     box-shadow: var(--shadow-lg);
+    position: relative;
 }
 
 .header-content {
@@ -61,6 +62,45 @@ body {
 .header-content p {
     opacity: 0.9;
     font-size: 1rem;
+}
+
+/* Authentication Status */
+.auth-status {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: white;
+    font-size: 0.9rem;
+}
+
+.auth-user {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0.9;
+}
+
+.auth-logout {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.auth-logout:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
 }
 
 .nav-tabs {

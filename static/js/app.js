@@ -10,6 +10,7 @@ let dashboardData = null;
 document.addEventListener('DOMContentLoaded', function() {
     initializeTabs();
     initializeEventListeners();
+    checkAuthStatus();  // Check authentication status on page load
     loadDashboard();
     loadSeriesSources();
 });
@@ -1374,5 +1375,63 @@ function updateEpisodeModalCounts() {
             <div style="color: #dc3545;"><strong>Missing Dates:</strong> ${episodesWithoutDates}</div>
             ${videoCountText}
         `;
+    }
+}
+
+// ===========================
+// Authentication Functions
+// ===========================
+
+async function checkAuthStatus() {
+    try {
+        const response = await fetch('/api/auth/status');
+        const authStatus = await response.json();
+        
+        const authStatusDiv = document.getElementById('auth-status');
+        const authUsernameSpan = document.getElementById('auth-username');
+        
+        if (authStatus.auth_enabled && authStatus.authenticated) {
+            // Show authentication status with username
+            authUsernameSpan.textContent = authStatus.username;
+            authStatusDiv.style.display = 'flex';
+        } else if (authStatus.auth_enabled && !authStatus.authenticated) {
+            // This shouldn't happen if middleware is working, but handle it
+            console.warn('Auth enabled but not authenticated - middleware may be misconfigured');
+        } else {
+            // Authentication disabled - hide auth status
+            authStatusDiv.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error('Failed to check authentication status:', error);
+        // Hide auth status on error
+        document.getElementById('auth-status').style.display = 'none';
+    }
+}
+
+async function logout() {
+    if (!confirm('Are you sure you want to logout?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+            showToast('✅ Logged out successfully', 'success');
+            // Reload page to trigger authentication prompt
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showToast('❌ Logout failed', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Logout failed:', error);
+        showToast('❌ Logout error', 'error');
     }
 }

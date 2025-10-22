@@ -178,7 +178,43 @@ curl -X POST "http://localhost:8080/manual/scan?path=/media/movies"
 
 # Bulk update all movies from Radarr database
 curl -X POST "http://localhost:8080/bulk/update"
+
+# Verify NFO files match database data
+curl -X POST "http://localhost:8080/database/verify/nfo-sync?media_type=both"
+
+# Fix NFO files that don't match database
+curl -X POST "http://localhost:8080/database/fix/nfo-sync?media_type=both"
 ```
+
+### NFO Verification & Synchronization
+
+NFOGuard includes comprehensive verification tools to ensure NFO files remain synchronized with database dates:
+
+```bash
+# Verify all NFO files (movies and episodes)
+curl -X POST "http://localhost:8080/database/verify/nfo-sync?media_type=both"
+
+# Verify only movies
+curl -X POST "http://localhost:8080/database/verify/nfo-sync?media_type=movies"
+
+# Verify only TV episodes  
+curl -X POST "http://localhost:8080/database/verify/nfo-sync?media_type=episodes"
+
+# Fix detected issues by regenerating NFO files
+curl -X POST "http://localhost:8080/database/fix/nfo-sync?media_type=both"
+```
+
+**Verification Checks:**
+- **Missing NFO files** - Database entries without corresponding NFO files
+- **Empty NFO files** - NFO files that exist but contain no content
+- **Date mismatches** - Database dates don't match NFO file dates
+- **Source mismatches** - Database source doesn't match NFO source information
+
+**Fix Operations:**
+- Regenerates NFO files from database data for any detected issues
+- Preserves existing metadata while updating NFOGuard date sections
+- Only operates when `MANAGE_NFO=true` is configured
+- Creates proper movie.nfo and episode S##E##.nfo files
 
 ### API Endpoints
 
@@ -207,6 +243,16 @@ curl -X POST "http://localhost:8080/bulk/update"
 | `/api/v1/metrics/processing` | GET | Processing-specific metrics |
 | `/api/v1/metrics/errors` | GET | Error metrics and recent failures |
 | `/api/v1/metrics/system` | GET | System resource metrics |
+
+#### **Database Management**
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/database/backfill/movie-release-dates` | POST | Backfill missing release dates for existing movies |
+| `/database/cleanup/orphaned-episodes` | POST | Delete episodes without video files |
+| `/database/cleanup/orphaned-movies` | POST | Delete movies without video files |
+| `/database/cleanup/orphaned-series` | POST | Delete TV series without directories |
+| `/database/verify/nfo-sync` | POST | Verify that database dates match NFO file contents |
+| `/database/fix/nfo-sync` | POST | Fix NFO sync issues by regenerating NFO files from database data |
 
 #### **Configuration & Debugging**
 | Endpoint | Method | Purpose |

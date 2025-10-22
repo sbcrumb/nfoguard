@@ -263,9 +263,11 @@ class TVSeriesProcessor:
                     if episode_id:
                         import_date = self.sonarr.get_episode_import_history(episode_id)
                         if import_date:
-                            dateadded = convert_utc_to_local(import_date)
+                            # Sonarr import dates are already in local timezone despite 'Z' suffix
+                            # Remove 'Z' and use as-is to avoid double timezone conversion
+                            dateadded = import_date.replace('Z', '') if 'Z' in import_date else import_date
                             source = "sonarr:history.import"
-                            _log("INFO", f"Found import date for S{season_num:02d}E{episode_num:02d}: {dateadded}")
+                            _log("INFO", f"Found import date for S{season_num:02d}E{episode_num:02d}: {dateadded} (no timezone conversion)")
                             return aired, dateadded, source
                     
                     # Fallback to airdate if no import history

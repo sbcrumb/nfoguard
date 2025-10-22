@@ -79,6 +79,9 @@ class NFOGuardConfig:
         
         # TV processing
         self._load_tv_settings()
+        
+        # Web interface authentication
+        self._load_auth_settings()
     
     def _load_paths(self) -> None:
         """Load and validate path configuration"""
@@ -155,6 +158,13 @@ class NFOGuardConfig:
         self.tv_season_dir_format = os.environ.get("TV_SEASON_DIR_FORMAT", "Season {season:02d}")
         self.tv_season_dir_pattern = os.environ.get("TV_SEASON_DIR_PATTERN", "season ").lower()
         self.tv_webhook_processing_mode = os.environ.get("TV_WEBHOOK_PROCESSING_MODE", "targeted").lower()
+    
+    def _load_auth_settings(self) -> None:
+        """Load web interface authentication settings"""
+        self.web_auth_enabled = _bool_env("WEB_AUTH_ENABLED", False)
+        self.web_auth_username = os.environ.get("WEB_AUTH_USERNAME", "admin")
+        self.web_auth_password = os.environ.get("WEB_AUTH_PASSWORD", "")
+        self.web_auth_session_timeout = self._get_int_env("WEB_AUTH_SESSION_TIMEOUT", 3600, 300, 86400)  # 1 hour default, 5min-24h range
     
     def _get_int_env(self, name: str, default: int, min_val: int, max_val: int) -> int:
         """Get integer environment variable with validation"""

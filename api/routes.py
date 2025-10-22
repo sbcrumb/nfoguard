@@ -7,7 +7,7 @@ import requests
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import HTTPException, BackgroundTasks, Request
+from fastapi import HTTPException, BackgroundTasks, Request, Response
 from typing import Optional
 
 # Import models
@@ -1233,6 +1233,509 @@ async def cleanup_orphaned_series(dependencies: dict):
         }
 
 
+async def verify_nfo_sync(dependencies: dict, media_type: str = "both"):
+    """Verify that database dates match NFO file contents"""
+    db = dependencies["db"]
+    nfo_manager = dependencies["nfo_manager"]
+    config = dependencies["config"]
+    
+    try:
+        verification_results = {
+            "movies": {"total": 0, "verified": 0, "missing_nfo": 0, "date_mismatch": 0, "empty_nfo": 0, "issues": []},
+            "episodes": {"total": 0, "verified": 0, "missing_nfo": 0, "date_mismatch": 0, "empty_nfo": 0, "issues": []}
+        }
+        
+        print(f"🔍 NFO VERIFICATION STARTED: Checking {media_type}")
+        
+        # Verify Movies
+        if media_type in ["both", "movies"]:
+            print("📽️ Verifying movie NFO files...")
+            
+            # Get all movies from database
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT imdb_id, path, dateadded, released, source FROM movies WHERE has_video_file = true")
+                movies = cursor.fetchall()
+            
+            verification_results["movies"]["total"] = len(movies)
+            
+            for movie in movies:
+                imdb_id = movie['imdb_id']
+                db_path = movie['path']
+                db_dateadded = movie['dateadded']
+                db_released = movie['released']
+                db_source = movie['source']
+                
+                try:
+                    from pathlib import Path
+                    movie_path = Path(db_path)
+                    nfo_path = movie_path / "movie.nfo"
+                    
+                    # Check if NFO exists
+                    if not nfo_path.exists():
+                        verification_results["movies"]["missing_nfo"] += 1
+                        verification_results["movies"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "path": str(movie_path),
+                            "issue": "missing_nfo",
+                            "message": "NFO file does not exist"
+                        })
+                        continue
+                    
+                    # Check if NFO is empty
+                    nfo_content = nfo_path.read_text(encoding='utf-8').strip()
+                    if not nfo_content:
+                        verification_results["movies"]["empty_nfo"] += 1
+                        verification_results["movies"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "path": str(movie_path),
+                            "issue": "empty_nfo",
+                            "message": "NFO file exists but is empty"
+                        })
+                        continue
+                    
+                    # Extract NFOGuard data from NFO
+                    nfo_data = nfo_manager.extract_nfoguard_dates_from_nfo(nfo_path)
+                    
+                    if not nfo_data:
+                        verification_results["movies"]["date_mismatch"] += 1
+                        verification_results["movies"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "path": str(movie_path),
+                            "issue": "no_nfoguard_data",
+                            "message": "NFO exists but contains no NFOGuard date information",
+                            "db_dateadded": str(db_dateadded),
+                            "db_source": db_source
+                        })
+                        continue
+                    
+                    # Compare dates
+                    nfo_dateadded = nfo_data.get("dateadded")
+                    nfo_source = nfo_data.get("source")
+                    
+                    # Convert database datetime to string for comparison
+                    if hasattr(db_dateadded, 'isoformat'):
+                        db_dateadded_str = db_dateadded.isoformat()
+                    else:
+                        db_dateadded_str = str(db_dateadded)
+                    
+                    # Check for date mismatch
+                    if nfo_dateadded != db_dateadded_str or nfo_source != db_source:
+                        verification_results["movies"]["date_mismatch"] += 1
+                        verification_results["movies"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "path": str(movie_path),
+                            "issue": "date_mismatch",
+                            "message": "Database and NFO dates/sources don't match",
+                            "db_dateadded": db_dateadded_str,
+                            "db_source": db_source,
+                            "nfo_dateadded": nfo_dateadded,
+                            "nfo_source": nfo_source
+                        })
+                        continue
+                    
+                    # Everything matches
+                    verification_results["movies"]["verified"] += 1
+                    
+                except Exception as e:
+                    verification_results["movies"]["issues"].append({
+                        "imdb_id": imdb_id,
+                        "path": db_path,
+                        "issue": "verification_error",
+                        "message": f"Error during verification: {str(e)}"
+                    })
+        
+        # Verify TV Episodes
+        if media_type in ["both", "episodes"]:
+            print("📺 Verifying TV episode NFO files...")
+            
+            # Get all episodes from database
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT imdb_id, season, episode, air_date, dateadded, source, video_path 
+                    FROM episodes 
+                    WHERE has_video_file = true 
+                    ORDER BY imdb_id, season, episode
+                """)
+                episodes = cursor.fetchall()
+            
+            verification_results["episodes"]["total"] = len(episodes)
+            
+            for episode in episodes:
+                imdb_id = episode['imdb_id']
+                season = episode['season']
+                episode_num = episode['episode']
+                db_air_date = episode['air_date']
+                db_dateadded = episode['dateadded']
+                db_source = episode['source']
+                video_path = episode['video_path']
+                
+                try:
+                    from pathlib import Path
+                    if video_path:
+                        video_file = Path(video_path)
+                        nfo_path = video_file.with_suffix('.nfo')
+                    else:
+                        # Construct expected path
+                        for tv_path in config.tv_paths:
+                            series_dirs = [d for d in tv_path.iterdir() if d.is_dir() and imdb_id in str(d)]
+                            if series_dirs:
+                                season_dir = series_dirs[0] / f"Season {season:02d}"
+                                if season_dir.exists():
+                                    episode_files = list(season_dir.glob(f"*S{season:02d}E{episode_num:02d}*.nfo"))
+                                    if episode_files:
+                                        nfo_path = episode_files[0]
+                                        break
+                        else:
+                            continue
+                    
+                    # Check if NFO exists
+                    if not nfo_path.exists():
+                        verification_results["episodes"]["missing_nfo"] += 1
+                        verification_results["episodes"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "episode": f"S{season:02d}E{episode_num:02d}",
+                            "issue": "missing_nfo",
+                            "message": "NFO file does not exist",
+                            "expected_path": str(nfo_path)
+                        })
+                        continue
+                    
+                    # Check if NFO is empty
+                    nfo_content = nfo_path.read_text(encoding='utf-8').strip()
+                    if not nfo_content:
+                        verification_results["episodes"]["empty_nfo"] += 1
+                        verification_results["episodes"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "episode": f"S{season:02d}E{episode_num:02d}",
+                            "issue": "empty_nfo",
+                            "message": "NFO file exists but is empty",
+                            "nfo_path": str(nfo_path)
+                        })
+                        continue
+                    
+                    # Extract NFOGuard data from episode NFO
+                    nfo_data = nfo_manager.extract_nfoguard_dates_from_episode_nfo(nfo_path)
+                    
+                    if not nfo_data:
+                        verification_results["episodes"]["date_mismatch"] += 1
+                        verification_results["episodes"]["issues"].append({
+                            "imdb_id": imdb_id,
+                            "episode": f"S{season:02d}E{episode_num:02d}",
+                            "issue": "no_nfoguard_data",
+                            "message": "NFO exists but contains no NFOGuard date information",
+                            "db_dateadded": str(db_dateadded),
+                            "db_source": db_source,
+                            "nfo_path": str(nfo_path)
+                        })
+                        continue
+                    
+                    # Everything matches
+                    verification_results["episodes"]["verified"] += 1
+                    
+                except Exception as e:
+                    verification_results["episodes"]["issues"].append({
+                        "imdb_id": imdb_id,
+                        "episode": f"S{season:02d}E{episode_num:02d}",
+                        "issue": "verification_error",
+                        "message": f"Error during verification: {str(e)}"
+                    })
+        
+        # Print summary
+        if media_type in ["both", "movies"]:
+            movies = verification_results["movies"]
+            print(f"📽️ MOVIE VERIFICATION COMPLETE:")
+            print(f"   Total Movies: {movies['total']}")
+            print(f"   ✅ Verified: {movies['verified']}")
+            print(f"   ❌ Missing NFO: {movies['missing_nfo']}")
+            print(f"   📄 Empty NFO: {movies['empty_nfo']}")
+            print(f"   🔄 Date Mismatch: {movies['date_mismatch']}")
+        
+        if media_type in ["both", "episodes"]:
+            episodes = verification_results["episodes"]
+            print(f"📺 EPISODE VERIFICATION COMPLETE:")
+            print(f"   Total Episodes: {episodes['total']}")
+            print(f"   ✅ Verified: {episodes['verified']}")
+            print(f"   ❌ Missing NFO: {episodes['missing_nfo']}")
+            print(f"   📄 Empty NFO: {episodes['empty_nfo']}")
+            print(f"   🔄 Date Mismatch: {episodes['date_mismatch']}")
+        
+        return {
+            "success": True,
+            "message": f"NFO verification completed for {media_type}",
+            "results": verification_results
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to verify NFO files"
+        }
+
+
+async def fix_nfo_sync_issues(dependencies: dict, media_type: str = "both"):
+    """Fix NFO sync issues by regenerating NFO files from database data"""
+    db = dependencies["db"]
+    nfo_manager = dependencies["nfo_manager"]
+    config = dependencies["config"]
+    
+    try:
+        # First run verification to identify issues
+        verification_result = await verify_nfo_sync(dependencies, media_type)
+        if not verification_result["success"]:
+            return verification_result
+        
+        results = verification_result["results"]
+        fix_results = {
+            "movies": {"fixed": 0, "failed": 0, "errors": []},
+            "episodes": {"fixed": 0, "failed": 0, "errors": []}
+        }
+        
+        print(f"🔧 NFO FIX STARTED: Regenerating NFO files for {media_type}")
+        
+        # Fix Movies
+        if media_type in ["both", "movies"]:
+            print("📽️ Fixing movie NFO files...")
+            
+            for issue in results["movies"]["issues"]:
+                if issue["issue"] in ["empty_nfo", "no_nfoguard_data", "date_mismatch"]:
+                    imdb_id = issue["imdb_id"]
+                    movie_path = issue["path"]
+                    
+                    try:
+                        # Get movie data from database
+                        movie_data = db.get_movie_dates(imdb_id)
+                        if not movie_data:
+                            fix_results["movies"]["errors"].append(f"No database data for {imdb_id}")
+                            fix_results["movies"]["failed"] += 1
+                            continue
+                        
+                        dateadded = movie_data.get("dateadded")
+                        released = movie_data.get("released")
+                        source = movie_data.get("source")
+                        
+                        # Convert datetime to string if needed
+                        if hasattr(dateadded, 'isoformat'):
+                            dateadded = dateadded.isoformat()
+                        if released and hasattr(released, 'isoformat'):
+                            released = released.isoformat()
+                        
+                        # Regenerate NFO file
+                        from pathlib import Path
+                        movie_path_obj = Path(movie_path)
+                        
+                        if config.manage_nfo:
+                            nfo_manager.create_movie_nfo(
+                                movie_path_obj, imdb_id, dateadded, released, source, config.lock_metadata
+                            )
+                            print(f"✅ Fixed NFO for {imdb_id}: {movie_path}")
+                            fix_results["movies"]["fixed"] += 1
+                        else:
+                            fix_results["movies"]["errors"].append(f"MANAGE_NFO disabled - cannot fix {imdb_id}")
+                            fix_results["movies"]["failed"] += 1
+                        
+                    except Exception as e:
+                        fix_results["movies"]["errors"].append(f"Error fixing {imdb_id}: {str(e)}")
+                        fix_results["movies"]["failed"] += 1
+        
+        # Fix Episodes
+        if media_type in ["both", "episodes"]:
+            print("📺 Fixing TV episode NFO files...")
+            
+            for issue in results["episodes"]["issues"]:
+                if issue["issue"] in ["empty_nfo", "no_nfoguard_data", "date_mismatch"]:
+                    imdb_id = issue["imdb_id"]
+                    episode_str = issue["episode"]
+                    
+                    try:
+                        # Parse season/episode from string like "S01E05"
+                        import re
+                        match = re.match(r'S(\d+)E(\d+)', episode_str)
+                        if not match:
+                            continue
+                        
+                        season = int(match.group(1))
+                        episode_num = int(match.group(2))
+                        
+                        # Get episode data from database
+                        episode_data = db.get_episode_date(imdb_id, season, episode_num)
+                        if not episode_data:
+                            fix_results["episodes"]["errors"].append(f"No database data for {episode_str}")
+                            fix_results["episodes"]["failed"] += 1
+                            continue
+                        
+                        air_date = episode_data.get("air_date")
+                        dateadded = episode_data.get("dateadded")
+                        source = episode_data.get("source")
+                        video_path = episode_data.get("video_path")
+                        
+                        # Convert datetime to string if needed
+                        if hasattr(air_date, 'isoformat'):
+                            air_date = air_date.isoformat()
+                        if hasattr(dateadded, 'isoformat'):
+                            dateadded = dateadded.isoformat()
+                        
+                        # Find the episode file
+                        from pathlib import Path
+                        if video_path:
+                            episode_file = Path(video_path)
+                        else:
+                            # Try to find it by scanning
+                            episode_file = None
+                            for tv_path in config.tv_paths:
+                                series_dirs = [d for d in tv_path.iterdir() if d.is_dir() and imdb_id in str(d)]
+                                if series_dirs:
+                                    season_dir = series_dirs[0] / f"Season {season:02d}"
+                                    if season_dir.exists():
+                                        video_files = list(season_dir.glob(f"*S{season:02d}E{episode_num:02d}*.mkv")) + \
+                                                    list(season_dir.glob(f"*S{season:02d}E{episode_num:02d}*.mp4")) + \
+                                                    list(season_dir.glob(f"*S{season:02d}E{episode_num:02d}*.avi"))
+                                        if video_files:
+                                            episode_file = video_files[0]
+                                            break
+                        
+                        if not episode_file or not episode_file.exists():
+                            fix_results["episodes"]["errors"].append(f"Cannot find video file for {episode_str}")
+                            fix_results["episodes"]["failed"] += 1
+                            continue
+                        
+                        # Regenerate NFO file
+                        if config.manage_nfo:
+                            nfo_manager.create_episode_nfo(
+                                episode_file, imdb_id, season, episode_num, air_date, dateadded, source, config.lock_metadata
+                            )
+                            print(f"✅ Fixed NFO for {episode_str}: {episode_file}")
+                            fix_results["episodes"]["fixed"] += 1
+                        else:
+                            fix_results["episodes"]["errors"].append(f"MANAGE_NFO disabled - cannot fix {episode_str}")
+                            fix_results["episodes"]["failed"] += 1
+                        
+                    except Exception as e:
+                        fix_results["episodes"]["errors"].append(f"Error fixing {episode_str}: {str(e)}")
+                        fix_results["episodes"]["failed"] += 1
+        
+        # Print summary
+        movies = fix_results["movies"]
+        episodes = fix_results["episodes"]
+        
+        print(f"🔧 NFO FIX COMPLETED:")
+        if media_type in ["both", "movies"]:
+            print(f"   📽️ Movies: {movies['fixed']} fixed, {movies['failed']} failed")
+        if media_type in ["both", "episodes"]:
+            print(f"   📺 Episodes: {episodes['fixed']} fixed, {episodes['failed']} failed")
+        
+        return {
+            "success": True,
+            "message": f"NFO fix completed for {media_type}",
+            "fix_results": fix_results,
+            "original_verification": results
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to fix NFO sync issues"
+        }
+
+
+async def backfill_movie_release_dates(dependencies: dict):
+    """Backfill missing release dates for existing movies"""
+    db = dependencies["db"]
+    movie_processor = dependencies["movie_processor"]
+    
+    try:
+        # Get all movies with missing release dates
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Find movies where released is NULL but source suggests we found a release date
+            query = """
+                SELECT imdb_id, path, dateadded, source 
+                FROM movies 
+                WHERE released IS NULL 
+                AND (source LIKE '%tmdb%' OR source LIKE '%omdb%' OR source LIKE '%premiered%')
+                ORDER BY last_updated DESC
+            """
+            cursor.execute(query)
+            movies_to_backfill = cursor.fetchall()
+        
+        if not movies_to_backfill:
+            return {
+                "success": True,
+                "message": "No movies found that need release date backfill",
+                "movies_processed": 0,
+                "movies_updated": 0
+            }
+        
+        processed_count = 0
+        updated_count = 0
+        
+        print(f"🔄 BACKFILL STARTED: Found {len(movies_to_backfill)} movies needing release date backfill")
+        
+        for movie in movies_to_backfill:
+            imdb_id = movie['imdb_id']
+            source = movie['source']
+            
+            try:
+                print(f"🔍 Processing {imdb_id} (source: {source})")
+                
+                # Try to get release date based on the source
+                release_date = None
+                
+                if 'tmdb' in source or 'omdb' in source:
+                    # Re-fetch digital release date
+                    digital_date, _ = movie_processor._get_digital_release_date(imdb_id)
+                    if digital_date:
+                        release_date = digital_date
+                        print(f"✅ Found release date for {imdb_id}: {release_date}")
+                    else:
+                        print(f"⚠️ Could not re-fetch release date for {imdb_id}")
+                
+                elif 'premiered' in source:
+                    # Use the dateadded as the release date for premiered sources
+                    release_date = movie['dateadded']
+                    if hasattr(release_date, 'isoformat'):
+                        release_date = release_date.isoformat()
+                    print(f"✅ Using premiered date for {imdb_id}: {release_date}")
+                
+                # Update the database if we found a release date
+                if release_date:
+                    db.upsert_movie_dates(imdb_id, release_date, movie['dateadded'], source, True)
+                    updated_count += 1
+                    print(f"📝 Updated release date for {imdb_id}")
+                
+                processed_count += 1
+                
+                # Small delay to avoid overwhelming APIs
+                import time
+                time.sleep(0.1)
+                
+            except Exception as e:
+                print(f"❌ Error processing {imdb_id}: {e}")
+                processed_count += 1
+                continue
+        
+        print(f"✅ BACKFILL COMPLETED: Processed {processed_count} movies, updated {updated_count} with release dates")
+        
+        return {
+            "success": True,
+            "message": f"Backfill completed: processed {processed_count} movies, updated {updated_count} with release dates",
+            "movies_processed": processed_count,
+            "movies_updated": updated_count,
+            "movies_found": len(movies_to_backfill)
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to backfill movie release dates"
+        }
+
+
 # ---------------------------
 # Route Registration
 # ---------------------------
@@ -1306,6 +1809,18 @@ def register_routes(app, dependencies: dict):
     @app.post("/database/cleanup/orphaned-series")
     async def _cleanup_orphaned_series():
         return await cleanup_orphaned_series(dependencies)
+
+    @app.post("/database/backfill/movie-release-dates")
+    async def _backfill_movie_release_dates():
+        return await backfill_movie_release_dates(dependencies)
+
+    @app.post("/database/verify/nfo-sync")
+    async def _verify_nfo_sync(media_type: str = "both"):
+        return await verify_nfo_sync(dependencies, media_type)
+
+    @app.post("/database/fix/nfo-sync")
+    async def _fix_nfo_sync_issues(media_type: str = "both"):
+        return await fix_nfo_sync_issues(dependencies, media_type)
 
     @app.post("/manual/scan")
     async def _manual_scan(background_tasks: BackgroundTasks, path: Optional[str] = None, scan_type: str = "both", scan_mode: str = "smart"):
@@ -1396,6 +1911,38 @@ def register_routes(app, dependencies: dict):
         """Update episode dateadded"""
         return await update_episode_date(dependencies, imdb_id, season, episode, request.dateadded, request.source)
     
+    @app.post("/api/auth/logout")
+    async def _logout(request: Request, response: Response):
+        """Logout endpoint - clears session"""
+        session_manager = dependencies.get("session_manager")
+        if session_manager:
+            session_token = request.cookies.get("nfoguard_session")
+            if session_token:
+                session_manager.delete_session(session_token)
+        
+        response.delete_cookie("nfoguard_session")
+        return {"status": "logged_out", "message": "Session cleared"}
+    
+    @app.get("/api/auth/status")
+    async def _auth_status(request: Request):
+        """Check authentication status"""
+        auth_enabled = dependencies.get("auth_enabled", False)
+        
+        if not auth_enabled:
+            return {"authenticated": True, "auth_enabled": False, "message": "Authentication disabled"}
+        
+        session_manager = dependencies.get("session_manager")
+        if not session_manager:
+            return {"authenticated": False, "auth_enabled": True, "message": "Session manager not available"}
+        
+        session_token = request.cookies.get("nfoguard_session")
+        if session_token:
+            username = session_manager.get_session_user(session_token)
+            if username:
+                return {"authenticated": True, "auth_enabled": True, "username": username}
+        
+        return {"authenticated": False, "auth_enabled": True, "message": "Not authenticated"}
+
     @app.post("/api/bulk/update-source")
     async def _bulk_update_source(request: BulkUpdateRequest):
         """Bulk update source for movies or episodes"""

@@ -15,6 +15,14 @@
                 <h1><i class="fas fa-shield-alt"></i> NFOGuard</h1>
                 <p>Database Management & Reporting</p>
             </div>
+            <div class="auth-status" id="auth-status" style="display: none;">
+                <span class="auth-user">
+                    <i class="fas fa-user"></i> <span id="auth-username">Loading...</span>
+                </span>
+                <button class="auth-logout" id="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
             <nav class="nav-tabs">
                 <button class="nav-tab active" data-tab="dashboard">
                     <i class="fas fa-tachometer-alt"></i> Dashboard

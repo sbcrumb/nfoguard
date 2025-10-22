@@ -15,6 +15,9 @@ from fastapi import FastAPI
 
 # Import configuration first
 from config.settings import config
+
+# Import authentication
+from api.auth import SimpleAuthMiddleware, create_auth_dependencies
 from utils.logging import _log
 
 # Import core components
@@ -171,6 +174,17 @@ def main():
     
     # Initialize components
     dependencies = initialize_components()
+    
+    # Add authentication dependencies
+    auth_deps = create_auth_dependencies(config)
+    dependencies.update(auth_deps)
+    
+    # Add authentication middleware if enabled
+    if config.web_auth_enabled:
+        app.add_middleware(SimpleAuthMiddleware, config=config)
+        _log("INFO", f"Web authentication enabled for user: {config.web_auth_username}")
+    else:
+        _log("INFO", "Web authentication disabled - web interface is public")
     
     # Store dependencies globally for signal handler access
     signal_handler.dependencies = dependencies

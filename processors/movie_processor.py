@@ -530,7 +530,8 @@ class MovieProcessor:
                 # Compare dates - prefer release date if it's reasonable
                 if self._should_prefer_release_over_file_date(digital_date, digital_source, released, imdb_id):
                     _log("INFO", f"✅ Movie {imdb_id}: Preferring digital release date {digital_date} over file date")
-                    return digital_date, digital_source, released
+                    # When using digital release date, store it as both dateadded and released
+                    return digital_date, digital_source, digital_date
                 else:
                     # Convert file date to local timezone for NFO files
                     local_file_date = convert_utc_to_local(import_date)
@@ -545,7 +546,8 @@ class MovieProcessor:
                 return local_import_date, import_source, released
             elif digital_date:
                 _log("INFO", f"✅ Movie {imdb_id}: Using digital release date {digital_date} from {digital_source}")
-                return digital_date, digital_source, released
+                # When using digital release date, store it as both dateadded and released
+                return digital_date, digital_source, digital_date
             else:
                 _log("WARNING", f"⚠️ Movie {imdb_id}: No import date OR digital release date found - trying additional fallbacks")
                 
@@ -553,13 +555,15 @@ class MovieProcessor:
                 radarr_premiered = self._get_radarr_nfo_premiered_date(movie_path)
                 if radarr_premiered:
                     _log("INFO", f"✅ Movie {imdb_id}: Using Radarr NFO premiered date {radarr_premiered}")
-                    return radarr_premiered, "radarr:nfo.premiered", released
+                    # When using Radarr NFO premiered date, store it as both dateadded and released
+                    return radarr_premiered, "radarr:nfo.premiered", radarr_premiered
         
         else:  # digital_then_import
             # Try digital release first
             digital_date, digital_source = self._get_digital_release_date(imdb_id)
             if digital_date:
-                return digital_date, digital_source, released
+                # When using digital release date, store it as both dateadded and released
+                return digital_date, digital_source, digital_date
             
             # Fall back to import history
             if radarr_movie:

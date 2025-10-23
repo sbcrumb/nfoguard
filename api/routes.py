@@ -15,11 +15,24 @@ from api.models import (
     SonarrWebhook, RadarrWebhook, HealthResponse, TVSeasonRequest, TVEpisodeRequest,
     MovieUpdateRequest, EpisodeUpdateRequest, BulkUpdateRequest
 )
-from api.web_routes import (
-    get_movies_list, get_tv_series_list, get_series_episodes, get_series_sources, get_missing_dates_report,
-    get_dashboard_stats, update_movie_date, update_episode_date, bulk_update_source,
-    get_movie_date_options, get_episode_date_options, debug_series_date_distribution
-)
+# Web routes removed - handled by separate web container
+
+# Global scan status tracking for detailed progress
+scan_status = {
+    "scanning": False,
+    "scan_type": None,
+    "scan_mode": None,
+    "start_time": None,
+    "current_operation": None,
+    "tv_series_processed": 0,
+    "tv_series_total": 0,
+    "tv_series_skipped": 0,
+    "movies_processed": 0,
+    "movies_total": 0,
+    "movies_skipped": 0,
+    "current_item": None,
+    "last_update": None
+}
 
 
 # ---------------------------
@@ -569,6 +582,9 @@ async def manual_scan(background_tasks: BackgroundTasks, path: Optional[str] = N
             
         print(f"🚀 MANUAL SCAN STARTED: {scan_type} scan (mode: {scan_mode}) initiated at {local_start.strftime('%Y-%m-%d %H:%M:%S')}{tz_display}")
         
+        # Initialize scan tracking
+        start_scan_tracking(scan_type, scan_mode)
+        
         # Initialize counters for scan statistics
         tv_series_total = 0
         tv_series_skipped = 0
@@ -629,86 +645,110 @@ async def manual_scan(background_tasks: BackgroundTasks, path: Optional[str] = N
                     else:
                         # Full series processing - scan subdirectories
                         import re
-                        tv_count = 0
+                        
+                        # Count total series first for progress tracking
+                        tv_series_list = []
                         for item in scan_path.iterdir():
+                            if (item.is_dir() and 
+                                not item.name.lower().startswith('season') and
+                                not re.match(r'^season\s+\d+$', item.name, re.IGNORECASE) and
+                                nfo_manager.parse_imdb_from_path(item)):
+                                tv_series_list.append(item)
+                        
+                        tv_series_count = len(tv_series_list)
+                        update_scan_status("tv", tv_series_total=tv_series_count)
+                        print(f"INFO: Found {tv_series_count} TV series to process")
+                        
+                        tv_count = 0
+                        for item in tv_series_list:
                             # Check for shutdown signal at start of each item
                             shutdown_event = dependencies.get("shutdown_event")
                             if shutdown_event and shutdown_event.is_set():
                                 print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
                                 return
                                 
-                            if (item.is_dir() and 
-                                not item.name.lower().startswith('season') and
-                                not re.match(r'^season\s+\d+$', item.name, re.IGNORECASE) and
-                                nfo_manager.parse_imdb_from_path(item)):
-                                tv_count += 1
-                                try:
-                                    # Determine force_scan based on scan mode
-                                    force_scan = (scan_mode == "full")
-                                    result = tv_processor.process_series(item, force_scan=force_scan)
-                                    tv_series_total += 1
-                                    if result == "skipped":
-                                        tv_series_skipped += 1
-                                    elif result == "processed":
-                                        tv_series_processed += 1
-                                except Exception as e:
-                                    print(f"ERROR: Failed processing TV series {item}: {e}")
-                                    tv_series_total += 1
+                            tv_count += 1
+                            update_scan_status(current_item=item.name, tv_series_processed=tv_count)
+                            
+                            try:
+                                # Determine force_scan based on scan mode
+                                force_scan = (scan_mode == "full")
+                                result = tv_processor.process_series(item, force_scan=force_scan)
+                                tv_series_total += 1
+                                if result == "skipped":
+                                    tv_series_skipped += 1
+                                elif result == "processed":
+                                    tv_series_processed += 1
+                            except Exception as e:
+                                print(f"ERROR: Failed processing TV series {item}: {e}")
+                                tv_series_total += 1
+                            
+                            # Yield control every TV series to allow other requests  
+                            if tv_count % 1 == 0:
+                                await asyncio.sleep(0.2)  # 200ms yield to process other requests
+                                print(f"INFO: Processed {tv_count} TV series, yielding to other requests...")
                                 
-                                # Yield control every TV series to allow other requests  
-                                if tv_count % 1 == 0:
-                                    await asyncio.sleep(0.2)  # 200ms yield to process other requests
-                                    print(f"INFO: Processed {tv_count} TV series, yielding to other requests...")
-                                    
-                                    # Check for shutdown signal
-                                    shutdown_event = dependencies.get("shutdown_event")
-                                    if shutdown_event and shutdown_event.is_set():
-                                        print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
-                                        return
+                                # Check for shutdown signal
+                                shutdown_event = dependencies.get("shutdown_event")
+                                if shutdown_event and shutdown_event.is_set():
+                                    print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
+                                    return
             
             if scan_type in ["both", "movies"] and scan_path in config.movie_paths:
                 print(f"INFO: Scanning movies in: {scan_path}")
-                movie_count = 0
+                update_scan_status("movies", current_item="Counting movies...")
+                
+                # Count total movies first for progress tracking
+                movie_list = []
                 for item in scan_path.iterdir():
+                    if item.is_dir() and nfo_manager.find_movie_imdb_id(item):
+                        movie_list.append(item)
+                
+                movie_total_count = len(movie_list)
+                update_scan_status(movies_total=movie_total_count)
+                print(f"INFO: Found {movie_total_count} movies to process")
+                
+                movie_count = 0
+                for item in movie_list:
                     # Check for shutdown signal at start of each movie
                     shutdown_event = dependencies.get("shutdown_event")
                     if shutdown_event and shutdown_event.is_set():
                         print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
                         return
                         
-                    if item.is_dir() and nfo_manager.find_movie_imdb_id(item):
-                        movie_count += 1
-                        print(f"INFO: Processing movie: {item.name}")
-                        try:
-                            # Determine force_scan based on scan mode
-                            force_scan = (scan_mode == "full")
-                            shutdown_event = dependencies.get("shutdown_event")
-                            result = movie_processor.process_movie(item, webhook_mode=False, force_scan=force_scan, shutdown_event=shutdown_event)
-                            movie_total += 1
-                            if result == "skipped":
-                                movie_skipped += 1
-                            elif result == "processed":
-                                movie_processed += 1
-                            elif result == "no_video_files":
-                                print(f"INFO: Skipped empty directory: {item.name}")
-                                movie_skipped += 1
-                            elif result == "shutdown":
-                                print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping movie scan gracefully")
-                                return
-                        except Exception as e:
-                            print(f"ERROR: Failed processing movie {item}: {e}")
-                            movie_total += 1
+                    movie_count += 1
+                    update_scan_status(current_item=item.name, movies_processed=movie_count)
+                    print(f"INFO: Processing movie: {item.name}")
+                    try:
+                        # Determine force_scan based on scan mode
+                        force_scan = (scan_mode == "full")
+                        shutdown_event = dependencies.get("shutdown_event")
+                        result = movie_processor.process_movie(item, webhook_mode=False, force_scan=force_scan, shutdown_event=shutdown_event)
+                        movie_total += 1
+                        if result == "skipped":
+                            movie_skipped += 1
+                        elif result == "processed":
+                            movie_processed += 1
+                        elif result == "no_video_files":
+                            print(f"INFO: Skipped empty directory: {item.name}")
+                            movie_skipped += 1
+                        elif result == "shutdown":
+                            print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping movie scan gracefully")
+                            return
+                    except Exception as e:
+                        print(f"ERROR: Failed processing movie {item}: {e}")
+                        movie_total += 1
+                    
+                    # Yield control every 2 movies to allow other requests (webhooks, web interface)
+                    if movie_count % 2 == 0:
+                        await asyncio.sleep(0.2)  # 200ms yield to process other requests
+                        print(f"INFO: Processed {movie_count} movies, yielding to other requests...")
                         
-                        # Yield control every 2 movies to allow other requests (webhooks, web interface)
-                        if movie_count % 2 == 0:
-                            await asyncio.sleep(0.2)  # 200ms yield to process other requests
-                            print(f"INFO: Processed {movie_count} movies, yielding to other requests...")
-                            
-                            # Check for shutdown signal
-                            shutdown_event = dependencies.get("shutdown_event")
-                            if shutdown_event and shutdown_event.is_set():
-                                print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
-                                return
+                        # Check for shutdown signal
+                        shutdown_event = dependencies.get("shutdown_event")
+                        if shutdown_event and shutdown_event.is_set():
+                            print("INFO: ⚠️ SHUTDOWN SIGNAL RECEIVED - Stopping scan gracefully")
+                            return
                         
                 print(f"INFO: Completed movie scan: {movie_count} movies processed in {scan_path}")
         
@@ -736,6 +776,9 @@ async def manual_scan(background_tasks: BackgroundTasks, path: Optional[str] = N
             
         print(f"✅ MANUAL SCAN COMPLETED: {scan_type} scan (mode: {scan_mode}) finished at {local_end.strftime('%Y-%m-%d %H:%M:%S')}{tz_display}")
         print(f"⏱️ MANUAL SCAN DURATION: {duration_str} (total time: {duration.total_seconds():.1f} seconds)")
+        
+        # Stop scan tracking
+        stop_scan_tracking()
         
         # Print optimization statistics for TV scans
         if scan_type in ["both", "tv"] and tv_series_total > 0:
@@ -1737,6 +1780,113 @@ async def backfill_movie_release_dates(dependencies: dict):
 
 
 # ---------------------------
+# Scan Status Functions
+# ---------------------------
+
+async def get_scan_status():
+    """Get detailed scan status with progress information"""
+    global scan_status
+    
+    if not scan_status["scanning"]:
+        return {"scanning": False, "message": "No active scan"}
+    
+    # Calculate elapsed time
+    from datetime import datetime
+    if scan_status["start_time"]:
+        elapsed_seconds = int((datetime.now() - scan_status["start_time"]).total_seconds())
+        if elapsed_seconds >= 60:
+            minutes = elapsed_seconds // 60
+            seconds = elapsed_seconds % 60
+            elapsed_str = f"{minutes}m {seconds}s"
+        else:
+            elapsed_str = f"{elapsed_seconds}s"
+    else:
+        elapsed_str = "unknown"
+    
+    # Build detailed status message
+    if scan_status["current_operation"] == "tv":
+        if scan_status["tv_series_total"] > 0:
+            message = f"Processing TV series ({scan_status['tv_series_processed']}/{scan_status['tv_series_total']}) - {elapsed_str} elapsed"
+        else:
+            message = f"Processed {scan_status['tv_series_processed']} TV series - {elapsed_str} elapsed"
+    elif scan_status["current_operation"] == "movies":
+        if scan_status["movies_total"] > 0:
+            message = f"Processing movies ({scan_status['movies_processed']}/{scan_status['movies_total']}) - {elapsed_str} elapsed"
+        else:
+            message = f"Processed {scan_status['movies_processed']} movies - {elapsed_str} elapsed"
+    else:
+        message = f"Scan in progress - {elapsed_str} elapsed"
+    
+    # Add current item if available
+    if scan_status["current_item"]:
+        message += f" | Current: {scan_status['current_item']}"
+    
+    return {
+        "scanning": True,
+        "message": message,
+        "scan_type": scan_status["scan_type"],
+        "scan_mode": scan_status["scan_mode"],
+        "elapsed_seconds": elapsed_seconds if scan_status["start_time"] else 0,
+        "current_operation": scan_status["current_operation"],
+        "tv_series_processed": scan_status["tv_series_processed"],
+        "tv_series_total": scan_status["tv_series_total"],
+        "tv_series_skipped": scan_status["tv_series_skipped"],
+        "movies_processed": scan_status["movies_processed"],
+        "movies_total": scan_status["movies_total"],
+        "movies_skipped": scan_status["movies_skipped"],
+        "current_item": scan_status["current_item"]
+    }
+
+def update_scan_status(operation=None, current_item=None, **kwargs):
+    """Update scan status with new progress information"""
+    global scan_status
+    
+    if operation:
+        scan_status["current_operation"] = operation
+    if current_item:
+        scan_status["current_item"] = current_item
+    
+    # Update counters
+    for key, value in kwargs.items():
+        if key in scan_status:
+            scan_status[key] = value
+    
+    scan_status["last_update"] = datetime.now()
+
+def start_scan_tracking(scan_type, scan_mode):
+    """Initialize scan tracking"""
+    global scan_status
+    
+    scan_status.update({
+        "scanning": True,
+        "scan_type": scan_type,
+        "scan_mode": scan_mode,
+        "start_time": datetime.now(),
+        "current_operation": None,
+        "tv_series_processed": 0,
+        "tv_series_total": 0,
+        "tv_series_skipped": 0,
+        "movies_processed": 0,
+        "movies_total": 0,
+        "movies_skipped": 0,
+        "current_item": None,
+        "last_update": datetime.now()
+    })
+
+def stop_scan_tracking():
+    """Stop scan tracking"""
+    global scan_status
+    
+    scan_status.update({
+        "scanning": False,
+        "scan_type": None,
+        "scan_mode": None,
+        "start_time": None,
+        "current_operation": None,
+        "current_item": None
+    })
+
+# ---------------------------
 # Route Registration
 # ---------------------------
 
@@ -1826,6 +1976,10 @@ def register_routes(app, dependencies: dict):
     async def _manual_scan(background_tasks: BackgroundTasks, path: Optional[str] = None, scan_type: str = "both", scan_mode: str = "smart"):
         return await manual_scan(background_tasks, path, scan_type, scan_mode, dependencies)
 
+    @app.get("/api/scan/status")
+    async def _scan_status():
+        return await get_scan_status()
+
     @app.post("/tv/scan-season")
     async def _scan_tv_season(background_tasks: BackgroundTasks, request: TVSeasonRequest):
         return await scan_tv_season(background_tasks, request, dependencies)
@@ -1859,131 +2013,37 @@ def register_routes(app, dependencies: dict):
     app.include_router(monitoring_router)
     
     # ---------------------------
-    # Web Interface API Routes
+    # Web Interface Moved to Separate Container  
     # ---------------------------
-    
-    @app.get("/api/dashboard")
-    async def _dashboard_stats():
-        """Get dashboard statistics"""
-        return await get_dashboard_stats(dependencies)
-    
-    @app.get("/api/movies")
-    async def _movies_list(skip: int = 0, limit: int = 100, has_date: Optional[bool] = None, 
-                          source_filter: Optional[str] = None, search: Optional[str] = None,
-                          imdb_search: Optional[str] = None):
-        """Get paginated movies list with filtering"""
-        return await get_movies_list(dependencies, skip, limit, has_date, source_filter, search, imdb_search)
-    
-    @app.get("/api/series")
-    async def _series_list(skip: int = 0, limit: int = 50, search: Optional[str] = None, 
-                          imdb_search: Optional[str] = None, date_filter: Optional[str] = None, 
-                          source_filter: Optional[str] = None):
-        """Get paginated TV series list with filtering"""
-        return await get_tv_series_list(dependencies, skip, limit, search, imdb_search, date_filter, source_filter)
-    
-    @app.get("/api/series/{imdb_id}/episodes")
-    async def _series_episodes(imdb_id: str):
-        """Get episodes for a specific series"""
-        return await get_series_episodes(dependencies, imdb_id)
-    
-    @app.get("/api/series/sources")
-    async def _series_sources():
-        """Get list of available episode sources for filtering"""
-        return await get_series_sources(dependencies)
-    
-    @app.get("/api/debug/series-date-distribution")
-    async def _debug_series_dates():
-        """Debug endpoint showing TV series date distribution"""
-        return await debug_series_date_distribution(dependencies)
-    
-    @app.get("/api/reports/missing-dates")
-    async def _missing_dates_report():
-        """Get report of content missing dateadded"""
-        return await get_missing_dates_report(dependencies)
-    
-    @app.put("/api/movies/{imdb_id}")
-    async def _update_movie(imdb_id: str, request: MovieUpdateRequest):
-        """Update movie dateadded"""
-        return await update_movie_date(dependencies, imdb_id, request.dateadded, request.source)
-    
-    @app.put("/api/episodes/{imdb_id}/{season}/{episode}")
-    async def _update_episode(imdb_id: str, season: int, episode: int, request: EpisodeUpdateRequest):
-        """Update episode dateadded"""
-        return await update_episode_date(dependencies, imdb_id, season, episode, request.dateadded, request.source)
-    
-    @app.post("/api/auth/logout")
-    async def _logout(request: Request, response: Response):
-        """Logout endpoint - clears session"""
-        session_manager = dependencies.get("session_manager")
-        if session_manager:
-            session_token = request.cookies.get("nfoguard_session")
-            if session_token:
-                session_manager.delete_session(session_token)
-        
-        response.delete_cookie("nfoguard_session")
-        return {"status": "logged_out", "message": "Session cleared"}
-    
-    @app.get("/api/auth/status")
-    async def _auth_status(request: Request):
-        """Check authentication status"""
-        auth_enabled = dependencies.get("auth_enabled", False)
-        
-        if not auth_enabled:
-            return {"authenticated": True, "auth_enabled": False, "message": "Authentication disabled"}
-        
-        session_manager = dependencies.get("session_manager")
-        if not session_manager:
-            return {"authenticated": False, "auth_enabled": True, "message": "Session manager not available"}
-        
-        session_token = request.cookies.get("nfoguard_session")
-        if session_token:
-            username = session_manager.get_session_user(session_token)
-            if username:
-                return {"authenticated": True, "auth_enabled": True, "username": username}
-        
-        return {"authenticated": False, "auth_enabled": True, "message": "Not authenticated"}
-
-    @app.post("/api/bulk/update-source")
-    async def _bulk_update_source(request: BulkUpdateRequest):
-        """Bulk update source for movies or episodes"""
-        return await bulk_update_source(dependencies, request.media_type, request.old_source, request.new_source)
-    
-    @app.get("/api/movies/{imdb_id}/date-options")
-    async def _movie_date_options(imdb_id: str):
-        """Get available date options for a movie"""
-        return await get_movie_date_options(dependencies, imdb_id)
-    
-    @app.get("/api/episodes/{imdb_id}/{season}/{episode}/date-options")
-    async def _episode_date_options(imdb_id: str, season: int, episode: int):
-        """Get available date options for an episode"""
-        return await get_episode_date_options(dependencies, imdb_id, season, episode)
-    
-    @app.get("/api/debug/movie/{imdb_id}/raw")
-    async def _debug_movie_raw(imdb_id: str):
-        """Debug endpoint to see raw movie database data"""
-        db = dependencies["db"]
-        movie = db.get_movie_dates(imdb_id)
-        if not movie:
-            raise HTTPException(status_code=404, detail="Movie not found")
-        return {"raw_data": dict(movie), "imdb_id": imdb_id}
+    # Web interface routes have been moved to the nfoguard-web container
+    # for performance isolation. The core container only handles:
+    # - Webhooks (/webhook/*)
+    # - Manual scans (/manual/*)  
+    # - Database operations (/database/*)
+    # - Health checks (/health)
+    # 
+    # Web interface available on separate container port 8081
     # ---------------------------
-    # Static Web Interface
+    # Core API - No Web Interface
     # ---------------------------
-    
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import FileResponse
-    import os
-    
-    # Serve static files for web interface
-    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
-    if os.path.exists(static_dir):
-        app.mount("/static", StaticFiles(directory=static_dir), name="static")
     
     @app.get("/")
-    async def _serve_index():
-        """Serve web interface index page"""
-        index_path = os.path.join(static_dir, "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
-        else:
-            return {"message": "NFOGuard Web Interface - API endpoints available at /api/", "api_docs": "/docs"}
+    async def _core_info():
+        """Core container API information - Web interface on separate container"""
+        import os
+        # Get configured web port from environment or config
+        web_port = os.environ.get("WEB_EXTERNAL_PORT", 
+                  getattr(dependencies.get("config", None), "web_api_port", "8081"))
+        
+        return {
+            "service": "NFOGuard Core Processing Engine",
+            "version": "2.7.0",
+            "message": f"Web interface available on separate container (port {web_port})",
+            "api_endpoints": {
+                "health": "/health",
+                "webhooks": "/webhook/*", 
+                "manual_scans": "/manual/*",
+                "database": "/database/*",
+                "api_docs": "/docs"
+            }
+        }

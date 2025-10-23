@@ -1,3 +1,14 @@
+# NFOGuard Legacy Single-Container Configuration
+# 
+# DEPRECATED: This is the legacy single-container setup where web interface
+# and core processing run in the same container, which can cause performance
+# issues during intensive scans.
+# 
+# RECOMMENDED: Use docker-compose.example.yml for the new 3-container 
+# architecture with better performance isolation.
+#
+# This file is maintained for backward compatibility and migration purposes.
+
 version: '3.8'
 
 services:

@@ -1214,3 +1214,196 @@ async def get_episode_date_options(dependencies: dict, imdb_id: str, season: int
         "current_data": episode_data,
         "options": options
     }
+
+
+def register_web_routes(app, dependencies):
+    """Register all web API routes with FastAPI app"""
+    from fastapi import Request, Response
+    
+    # Dashboard and stats endpoints  
+    @app.get("/api/dashboard")
+    async def api_dashboard():
+        return await get_dashboard_stats(dependencies)
+    
+    @app.get("/api/dashboard/stats")
+    async def api_dashboard_stats():
+        return await get_dashboard_stats(dependencies)
+    
+    # Movies endpoints
+    @app.get("/api/movies")
+    async def api_movies_list(skip: int = 0, limit: int = 100, has_date: bool = None, 
+                             source_filter: str = None, search: str = None, imdb_search: str = None):
+        return await get_movies_list(dependencies, skip, limit, has_date, source_filter, search, imdb_search)
+    
+    @app.post("/api/movies/{imdb_id}/update-date")
+    async def api_update_movie_date(imdb_id: str, dateadded: str = None, source: str = "manual"):
+        return {"error": "Updates not available in web container. Use core container on port 8085."}
+    
+    @app.put("/api/movies/{imdb_id}")
+    async def api_update_movie(imdb_id: str, dateadded: str = None, source: str = "manual"):
+        return {"error": "Updates not available in web container. Use core container on port 8085."}
+    
+    @app.get("/api/movies/{imdb_id}/date-options")
+    async def api_movie_date_options(imdb_id: str):
+        return {"options": [], "message": "Date options not available in web container. Use core container on port 8085."}
+    
+    # TV series endpoints
+    @app.get("/api/series")
+    async def api_series_list(skip: int = 0, limit: int = 50, search: str = None, 
+                             imdb_search: str = None, date_filter: str = None, source_filter: str = None):
+        return await get_tv_series_list(dependencies, skip, limit, search, imdb_search, date_filter, source_filter)
+    
+    @app.get("/api/series/{imdb_id}/episodes")
+    async def api_series_episodes(imdb_id: str):
+        return await get_series_episodes(dependencies, imdb_id)
+    
+    @app.get("/api/series/sources")
+    async def api_series_sources():
+        return await get_series_sources(dependencies)
+    
+    @app.get("/api/series/debug/date-distribution")
+    async def api_debug_series_date_distribution():
+        return await debug_series_date_distribution(dependencies)
+    
+    # Episode endpoints
+    @app.post("/api/episodes/{imdb_id}/{season}/{episode}/update-date")
+    async def api_update_episode_date(imdb_id: str, season: int, episode: int, 
+                                     dateadded: str = None, source: str = "manual"):
+        return {"error": "Updates not available in web container. Use core container on port 8085."}
+    
+    @app.put("/api/episodes/{imdb_id}/{season}/{episode}")
+    async def api_update_episode(imdb_id: str, season: int, episode: int, 
+                                dateadded: str = None, source: str = "manual"):
+        return {"error": "Updates not available in web container. Use core container on port 8085."}
+    
+    @app.get("/api/episodes/{imdb_id}/{season}/{episode}/date-options")
+    async def api_episode_date_options(imdb_id: str, season: int, episode: int):
+        return {"options": [], "message": "Date options not available in web container. Use core container on port 8085."}
+    
+    # Bulk operations
+    @app.post("/api/bulk/update-source")
+    async def api_bulk_update_source(media_type: str, old_source: str, new_source: str):
+        return {"error": "Bulk operations not available in web container. Use core container on port 8085."}
+    
+    # Reports
+    @app.get("/api/reports/missing-dates")
+    async def api_missing_dates_report():
+        return await get_missing_dates_report(dependencies)
+    
+    # Authentication endpoints (for web interface compatibility)
+    @app.get("/api/auth/status")
+    async def api_auth_status(request: Request):
+        """Check authentication status"""
+        auth_enabled = dependencies.get("auth_enabled", False)
+        
+        if not auth_enabled:
+            return {"authenticated": True, "auth_enabled": False, "message": "Authentication disabled"}
+        
+        session_manager = dependencies.get("session_manager")
+        if not session_manager:
+            return {"authenticated": False, "auth_enabled": True, "message": "Session manager not available"}
+        
+        session_token = request.cookies.get("nfoguard_session")
+        if session_token:
+            username = session_manager.get_session_user(session_token)
+            if username:
+                return {"authenticated": True, "auth_enabled": True, "username": username}
+        
+        return {"authenticated": False, "auth_enabled": True, "message": "Not authenticated"}
+    
+    @app.post("/api/auth/logout")
+    async def api_auth_logout(request: Request, response: Response):
+        """Logout endpoint - clears session"""
+        session_manager = dependencies.get("session_manager")
+        if session_manager:
+            session_token = request.cookies.get("nfoguard_session")
+            if session_token:
+                session_manager.delete_session(session_token)
+        
+        response.delete_cookie("nfoguard_session")
+        return {"status": "logged_out", "message": "Session cleared"}
+    
+    # Manual scan endpoints (proxy to core container)
+    @app.post("/manual/scan")
+    async def api_manual_scan(request: Request):
+        """Proxy manual scan requests to core container"""
+        import urllib.request
+        import urllib.parse
+        import urllib.error
+        import json
+        import os
+        import socket
+        
+        # Get core container URL
+        core_host = os.environ.get("CORE_API_HOST", "nfoguard-core")
+        core_port = os.environ.get("CORE_API_PORT", "8080")
+        
+        # Forward query parameters from the request
+        query_string = str(request.url.query) if request.url.query else ""
+        core_url = f"http://{core_host}:{core_port}/manual/scan"
+        if query_string:
+            core_url += f"?{query_string}"
+        
+        try:
+            # Create request with timeout (no body needed for query parameters)
+            req = urllib.request.Request(core_url, method='POST')
+            
+            # Make request with timeout
+            with urllib.request.urlopen(req, timeout=30) as response:
+                response_data = response.read().decode('utf-8')
+                return json.loads(response_data)
+                
+        except urllib.error.HTTPError as e:
+            raise HTTPException(status_code=e.code, detail=f"Core container HTTP error: {e.reason}")
+        except urllib.error.URLError as e:
+            raise HTTPException(status_code=503, detail=f"Could not connect to core container: {str(e)}")
+        except socket.timeout:
+            raise HTTPException(status_code=504, detail="Core container request timed out")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Manual scan request failed: {str(e)}")
+    
+    # Simple scan tracking (since we can't reliably access docker logs from container)
+    scan_tracking = {"last_scan_time": None, "scanning": False}
+    
+    @app.post("/api/scan/track")
+    async def track_scan_start():
+        """Called when a scan is initiated to track timing"""
+        from datetime import datetime
+        scan_tracking["last_scan_time"] = datetime.now()
+        scan_tracking["scanning"] = True
+        return {"status": "tracked"}
+    
+    @app.get("/api/scan/status")
+    async def api_scan_status():
+        """Proxy scan status requests to core container for detailed progress"""
+        import urllib.request
+        import urllib.error
+        import json
+        import os
+        import socket
+        
+        # Get core container connection details
+        core_host = os.environ.get("CORE_API_HOST", "nfoguard-core")
+        core_port = os.environ.get("CORE_API_PORT", "8080")
+        
+        try:
+            # Call core container's detailed scan status endpoint
+            status_url = f"http://{core_host}:{core_port}/api/scan/status"
+            req = urllib.request.Request(status_url)
+            
+            with urllib.request.urlopen(req, timeout=5) as response:
+                status_data = json.loads(response.read().decode())
+                return status_data
+                
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                # Core container doesn't have the endpoint, fallback to simple tracking
+                return {"scanning": False, "message": "Detailed status not available"}
+            else:
+                return {"scanning": False, "message": f"Core container error: {e.code}"}
+        except (urllib.error.URLError, socket.timeout):
+            return {"scanning": False, "message": "Core container unavailable"}
+        except json.JSONDecodeError:
+            return {"scanning": False, "message": "Invalid response from core container"}
+        except Exception as e:
+            return {"scanning": False, "message": f"Unable to check scan status: {str(e)}"}

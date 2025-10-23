@@ -387,9 +387,6 @@ class MovieProcessor:
         
         _log("DEBUG", f"Movie processing reached file mtime section: fix_dir_mtimes={config.fix_dir_mtimes}, dateadded={dateadded}")
         
-        # Yield control briefly during movie processing to allow web interface requests
-        import time
-        time.sleep(0.005)  # 5ms yield per movie to improve responsiveness
         
         # Save to database
         _log("DEBUG", f"About to save to database: imdb_id={imdb_id}, dateadded={dateadded}")

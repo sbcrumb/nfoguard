@@ -45,6 +45,9 @@ class NFOGuardConfig:
     
     def _load_configuration(self) -> None:
         """Load all configuration from environment variables"""
+        # Server configuration
+        self._load_server_settings()
+        
         # Core paths - Required
         self._load_paths()
         
@@ -117,6 +120,16 @@ class NFOGuardConfig:
                 reason="No valid movie paths found after parsing", 
                 current_value=movie_paths_env
             )
+    
+    def _load_server_settings(self) -> None:
+        """Load server configuration"""
+        # Core API settings (webhooks, processing, database management)
+        self.core_api_host = os.environ.get("CORE_API_HOST", "0.0.0.0")
+        self.core_api_port = self._get_int_env("CORE_API_PORT", 8080, 1024, 65535)
+        
+        # Web API settings (dashboard, web interface) - for reference/connection
+        self.web_api_host = os.environ.get("WEB_API_HOST", "0.0.0.0")
+        self.web_api_port = self._get_int_env("WEB_API_PORT", 8081, 1024, 65535)
     
     def _load_external_connections(self) -> None:
         """Load external API and database connection settings"""

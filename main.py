@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-NFOGuard - Automated NFO file management for Radarr and Sonarr
-Modular architecture with webhook processing and intelligent date handling
+NFOGuard Core - Automated NFO file management and processing engine
+Core processing container with webhooks, scanning, and database management
+Web interface separated to nfoguard-web container
 """
 import os
 import sys
@@ -16,8 +17,7 @@ from fastapi import FastAPI
 # Import configuration first
 from config.settings import config
 
-# Import authentication
-from api.auth import SimpleAuthMiddleware, create_auth_dependencies
+# Authentication removed - handled by separate web container
 from utils.logging import _log
 
 # Import core components
@@ -175,16 +175,8 @@ def main():
     # Initialize components
     dependencies = initialize_components()
     
-    # Add authentication dependencies
-    auth_deps = create_auth_dependencies(config)
-    dependencies.update(auth_deps)
-    
-    # Add authentication middleware if enabled
-    if config.web_auth_enabled:
-        app.add_middleware(SimpleAuthMiddleware, config=config)
-        _log("INFO", f"Web authentication enabled for user: {config.web_auth_username}")
-    else:
-        _log("INFO", "Web authentication disabled - web interface is public")
+    # Note: Authentication and web interface handled by separate nfoguard-web container
+    _log("INFO", "Core API: Authentication handled by separate web container")
     
     # Store dependencies globally for signal handler access
     signal_handler.dependencies = dependencies
@@ -193,10 +185,16 @@ def main():
     register_routes(app, dependencies)
     
     try:
+        # Core API configuration (webhooks, processing, database management)
+        core_host = config.core_api_host if hasattr(config, 'core_api_host') else "0.0.0.0"
+        core_port = config.core_api_port if hasattr(config, 'core_api_port') else 8080
+        
+        _log("INFO", f"🚀 Starting NFOGuard Core API on {core_host}:{core_port}")
+        
         uvicorn.run(
             app,
-            host="0.0.0.0", 
-            port=int(os.environ.get("PORT", "8080")),
+            host=core_host, 
+            port=core_port,
             reload=False,
             access_log=False,  # Reduce logging overhead
             server_header=False,  # Reduce response overhead

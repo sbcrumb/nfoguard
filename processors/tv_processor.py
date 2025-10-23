@@ -214,11 +214,6 @@ class TVProcessor:
                     _log("ERROR", f"S{season:02d}E{episode:02d}: Database write failed: {e}")
                     # Continue processing other episodes
                 
-                # Yield control every 3 episodes to allow other requests (webhooks, web interface)
-                if episode_count % 3 == 0:
-                    import time
-                    time.sleep(0.1)  # 100ms yield to improve responsiveness during episode processing
-                    _log("DEBUG", f"Processed {episode_count} episodes, yielding to allow other requests...")
         
         # Skip season.nfo and tvshow.nfo creation - focus only on episode NFOs
         pass
@@ -453,11 +448,6 @@ class TVProcessor:
                             episode_data['dateAdded'] = import_date
                             _log("DEBUG", f"Got import date from history for S{season:02d}E{episode_num:02d}: {import_date}")
                         
-                        # Yield control every 5 API calls to allow other requests
-                        if api_calls_made % 5 == 0:
-                            import time
-                            time.sleep(0.01)  # 10ms yield to other processes
-                            _log("DEBUG", f"Yielded after {api_calls_made} Sonarr API calls to allow other requests...")
                     
                     # Fallback to episodeFile.dateAdded if history didn't work
                     if not episode_data['dateAdded'] and episode.get('hasFile'):
@@ -468,11 +458,6 @@ class TVProcessor:
                     
                     episode_map[(season, episode_num)] = episode_data
                     
-                    # Also yield control every 20 episodes processed to prevent blocking
-                    if episodes_processed % 20 == 0:
-                        import time
-                        time.sleep(0.01)  # 10ms yield for large episode lists
-                        _log("DEBUG", f"Processed {episodes_processed} episodes, yielding to allow other requests...")
             
             if filter_set:
                 _log("DEBUG", f"Made {api_calls_made} Sonarr history API calls for filtered episodes (instead of all episodes)")

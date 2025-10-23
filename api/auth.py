@@ -72,10 +72,10 @@ class AuthSession:
 class SimpleAuthMiddleware(BaseHTTPMiddleware):
     """Simple authentication middleware for web interface routes"""
     
-    def __init__(self, app, config):
+    def __init__(self, app, config, session_manager=None):
         super().__init__(app)
         self.config = config
-        self.session_manager = AuthSession(config.web_auth_session_timeout)
+        self.session_manager = session_manager or AuthSession(config.web_auth_session_timeout)
         self.security = HTTPBasic()
         
         # Routes that require authentication (web interface)
@@ -92,6 +92,8 @@ class SimpleAuthMiddleware(BaseHTTPMiddleware):
         self.public_routes = [
             "/webhook/",
             "/health",
+            "/logo/",  # Logo files should always be accessible
+            "/favicon.ico",  # Favicon should always be accessible
             "/ping",
             "/api/v1/health",
             "/api/v1/metrics",

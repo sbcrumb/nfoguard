@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFOGuard - Database Management</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-logo">
+                    <div class="header-text">
+                        <h1>NFOGuard</h1>
+                        <p>Database Management & Reporting</p>
+                    </div>
+                </div>
+            </div>
+            <div class="auth-status" id="auth-status" style="display: none;">
+                <span class="auth-user">
+                    <i class="fas fa-user"></i> <span id="auth-username">Loading...</span>
+                </span>
+                <button class="auth-logout" id="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+            <nav class="nav-tabs">
+                <button class="nav-tab active" data-tab="dashboard">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </button>
+                <button class="nav-tab" data-tab="movies">
+                    <i class="fas fa-film"></i> Movies
+                </button>
+                <button class="nav-tab" data-tab="tv">
+                    <i class="fas fa-tv"></i> TV Series
+                </button>
+                <button class="nav-tab" data-tab="reports">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </button>
+                <button class="nav-tab" data-tab="tools">
+                    <i class="fas fa-tools"></i> Tools
+                </button>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <div class="tab-content active" id="dashboard">
+                <!-- Scan Status Banner -->
+                <div class="scan-status-banner" id="dashboard-scan-status" style="display: none;">
+                    <div class="scan-status-content">
+                        <div class="scan-status-icon">
+                            <i class="fas fa-sync fa-spin"></i>
+                        </div>
+                        <div class="scan-status-info">
+                            <h4>Scan in Progress</h4>
+                            <p id="dashboard-scan-text">Processing media files...</p>
+                            <div class="scan-progress-mini">
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill-mini" id="dashboard-scan-progress"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon movies">
+                            <i class="fas fa-film"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="movies-total">-</h3>
+                            <p>Total Movies</p>
+                            <small id="movies-with-dates">- with dates</small>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon tv">
+                            <i class="fas fa-tv"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="series-total">-</h3>
+                            <p>TV Series</p>
+                            <small id="episodes-total">- episodes</small>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon missing">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="missing-dates-total">-</h3>
+                            <p>Missing Dates</p>
+                            <small id="no-valid-source-total">- no valid source</small>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon activity">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="recent-activity">-</h3>
+                            <p>Recent Activity</p>
+                            <small>Last 7 days</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <div class="chart-card">
+                        <h3><i class="fas fa-chart-pie"></i> Movie Sources</h3>
+                        <div id="movie-sources-chart" class="chart-container"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3><i class="fas fa-chart-pie"></i> Episode Sources</h3>
+                        <div id="episode-sources-chart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Movies Tab -->
+            <div class="tab-content" id="movies">
+                <div class="content-header">
+                    <h2><i class="fas fa-film"></i> Movies Database</h2>
+                    <div class="content-controls">
+                        <div class="search-controls">
+                            <div class="search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="movies-search" placeholder="Search title/path...">
+                            </div>
+                            <div class="search-box">
+                                <i class="fas fa-hashtag"></i>
+                                <input type="text" id="movies-imdb-search" placeholder="Search IMDb ID...">
+                            </div>
+                        </div>
+                        <div class="filter-controls">
+                            <select id="movies-filter-date">
+                                <option value="">All Movies</option>
+                                <option value="true">With Dates</option>
+                                <option value="false">Missing Dates</option>
+                            </select>
+                            <select id="movies-filter-source">
+                                <option value="">All Sources</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="refreshMovies()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table" id="movies-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>IMDb ID</th>
+                                <th>Movie Released</th>
+                                <th>Date Added to Library</th>
+                                <th>Source</th>
+                                <th>Date Type</th>
+                                <th>Video File</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="movies-tbody">
+                            <tr>
+                                <td colspan="8" class="loading">Loading movies...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" id="movies-pagination"></div>
+            </div>
+
+            <!-- TV Series Tab -->
+            <div class="tab-content" id="tv">
+                <div class="content-header">
+                    <h2><i class="fas fa-tv"></i> TV Series Database</h2>
+                    <div class="content-controls">
+                        <div class="search-controls">
+                            <div class="search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="series-search" placeholder="Search title/path...">
+                            </div>
+                            <div class="search-box">
+                                <i class="fas fa-hashtag"></i>
+                                <input type="text" id="series-imdb-search" placeholder="Search IMDb ID...">
+                            </div>
+                        </div>
+                        <div class="filter-controls">
+                            <select id="series-filter-date">
+                                <option value="">All Series</option>
+                                <option value="complete">Fully Dated</option>
+                                <option value="incomplete">Missing Dates</option>
+                                <option value="none">No Dates</option>
+                            </select>
+                            <select id="series-filter-source">
+                                <option value="">All Sources</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="refreshSeries()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table" id="series-table">
+                        <thead>
+                            <tr>
+                                <th>Series Title</th>
+                                <th>IMDb ID</th>
+                                <th>Episodes</th>
+                                <th>With Dates</th>
+                                <th>With Video</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="series-tbody">
+                            <tr>
+                                <td colspan="6" class="loading">Loading series...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" id="series-pagination"></div>
+            </div>
+
+            <!-- Reports Tab -->
+            <div class="tab-content" id="reports">
+                <div class="content-header">
+                    <h2><i class="fas fa-chart-bar"></i> Missing Dates Report</h2>
+                    <div class="content-controls">
+                        <button class="btn btn-primary" onclick="refreshReport()">
+                            <i class="fas fa-sync"></i> Refresh Report
+                        </button>
+                    </div>
+                </div>
+
+                <div class="report-summary" id="report-summary">
+                    <div class="summary-card">
+                        <h3>Movies</h3>
+                        <p><span id="report-movies-with">-</span> with dates</p>
+                        <p><span id="report-movies-missing">-</span> missing dates</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Episodes</h3>
+                        <p><span id="report-episodes-with">-</span> with dates</p>
+                        <p><span id="report-episodes-missing">-</span> missing dates</p>
+                    </div>
+                </div>
+
+                <div class="report-content">
+                    <div class="report-section">
+                        <h3><i class="fas fa-film"></i> Movies Missing Dates</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>IMDb ID</th>
+                                        <th>Released</th>
+                                        <th>Source</th>
+                                        <th>Smart Fix</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-movies-tbody">
+                                    <tr>
+                                        <td colspan="5" class="loading">Loading report...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-section">
+                        <h3><i class="fas fa-tv"></i> Episodes Missing Dates</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Series</th>
+                                        <th>Episode</th>
+                                        <th>IMDb ID</th>
+                                        <th>Aired</th>
+                                        <th>Source</th>
+                                        <th>Smart Fix</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-episodes-tbody">
+                                    <tr>
+                                        <td colspan="6" class="loading">Loading report...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Tab -->
+            <div class="tab-content" id="tools">
+                <div class="content-header">
+                    <h2><i class="fas fa-tools"></i> Database Tools</h2>
+                </div>
+
+                <!-- Scan Status Display -->
+                <div class="scan-status-card" id="scan-status" style="display: none;">
+                    <div class="scan-status-header">
+                        <h3><i class="fas fa-sync fa-spin"></i> Scan in Progress</h3>
+                        <div class="scan-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="scan-progress"></div>
+                            </div>
+                            <span class="progress-text" id="scan-progress-text">Initializing...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-grid">
+                    <!-- Manual Scan Tools -->
+                    <div class="tool-card">
+                        <h3><i class="fas fa-search"></i> Manual Scan</h3>
+                        <p>Run manual scans on your media library</p>
+                        <form id="manual-scan-form">
+                            <div class="form-group">
+                                <label>Scan Type:</label>
+                                <select id="scan-type" required>
+                                    <option value="both">Both (Movies & TV)</option>
+                                    <option value="movies">Movies Only</option>
+                                    <option value="tv">TV Series Only</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Scan Mode:</label>
+                                <select id="scan-mode" required>
+                                    <option value="smart">Smart (Recommended)</option>
+                                    <option value="full">Full Scan</option>
+                                    <option value="incomplete">Incomplete Items Only</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-play"></i> Start Scan
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="tool-card">
+                        <h3><i class="fas fa-folder"></i> Custom Directory Scan</h3>
+                        <p>Scan a specific directory or path</p>
+                        <form id="custom-scan-form">
+                            <div class="form-group">
+                                <label>Directory Path:</label>
+                                <input type="text" id="scan-path" placeholder="/media/Movies/specific-folder" />
+                                <small>Enter the full path to scan (will be auto-formatted)</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Scan Type:</label>
+                                <select id="custom-scan-type" required>
+                                    <option value="both">Auto-detect</option>
+                                    <option value="movies">Movies</option>
+                                    <option value="tv">TV Series</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-search"></i> Scan Directory
+                            </button>
+                        </form>
+                    </div>
+
+
+                    <div class="tool-card">
+                        <h3><i class="fas fa-database"></i> Database Statistics</h3>
+                        <p>View detailed database information</p>
+                        <div class="stats-display" id="detailed-stats">
+                            <p>Click refresh to load detailed statistics</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="loadDetailedStats()">
+                            <i class="fas fa-sync"></i> Refresh Stats
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Smart Fix Modal -->
+    <div class="modal" id="smart-fix-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="smart-fix-title">Choose Date Source</h3>
+                <button class="modal-close" onclick="closeSmartFixModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="smart-fix-content">
+                    <p>Loading available options...</p>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeSmartFixModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal" id="edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Edit Entry</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-imdb-id">
+                    <input type="hidden" id="edit-season">
+                    <input type="hidden" id="edit-episode">
+                    <input type="hidden" id="edit-media-type">
+                    
+                    <div class="form-group">
+                        <label for="edit-dateadded">Date Added:</label>
+                        <input type="datetime-local" id="edit-dateadded">
+                        <small>Leave empty to clear date</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-source">Source:</label>
+                        <select id="edit-source" required>
+                            <option value="manual">Manual</option>
+                            <option value="airdate">Air Date</option>
+                            <option value="digital_release">Digital Release</option>
+                            <option value="radarr:db.history.import">Radarr Import</option>
+                            <option value="sonarr:history.import">Sonarr Import</option>
+                            <option value="no_valid_date_source">No Valid Source</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
